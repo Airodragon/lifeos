@@ -1,0 +1,50 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth";
+import { z } from "zod";
+
+const createSchema = z.object({
+  symbol: z.string().min(1),
+  name: z.string().min(1),
+  type: z.enum(["stock", "etf", "crypto", "mutual_fund"]),
+  quantity: z.number().positive(),
+  avgBuyPrice: z.number().positive(),
+  currentPrice: z.number().optional(),
+  currency: z.string().default("INR"),
+});
+
+export async function GET() {
+  try {
+    const user = await requireUser();
+    const investments = await prisma.investment.findMany({
+      where: { userId: user.id },
+      include: { dividends: true },
+      orderBy: { createdAt: "desc" },
+    });
+    return NextResponse.json(investments);
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const user = await requireUser();
+    const body = await req.json();
+    const data = createSchema.parse(body);
+
+    const investment = await prisma.investment.create({
+      data: {
+        userId: user.id,
+        ...data,
+      },
+    });
+
+    return NextResponse.json(investment, { status: 201 });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.issues }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}

@@ -1,0 +1,270 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String?
+  avatar        String?
+  currency      String    @default("INR")
+  onboarded     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  authenticators   Authenticator[]
+  accounts         Account[]
+  transactions     Transaction[]
+  categories       Category[]
+  investments      Investment[]
+  offlineAssets    OfflineAsset[]
+  committees       Committee[]
+  goals            Goal[]
+  budgets          Budget[]
+  liabilities      Liability[]
+  notifications    Notification[]
+  emailConnections EmailConnection[]
+}
+
+model Authenticator {
+  id                  String   @id @default(cuid())
+  userId              String
+  credentialId        String   @unique
+  credentialPublicKey Bytes
+  counter             BigInt
+  transports          String[]
+  createdAt           DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailConnection {
+  id           String    @id @default(cuid())
+  userId       String
+  provider     String
+  accessToken  String
+  refreshToken String?
+  email        String
+  lastSyncAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id       String  @id @default(cuid())
+  userId   String
+  name     String
+  type     String
+  balance  Decimal @default(0) @db.Decimal(15, 2)
+  currency String  @default("INR")
+  icon     String?
+  color    String?
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+}
+
+model Category {
+  id     String  @id @default(cuid())
+  userId String
+  name   String
+  icon   String?
+  color  String?
+  type   String
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgets      Budget[]
+
+  @@unique([userId, name, type])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  accountId   String?
+  categoryId  String?
+  amount      Decimal  @db.Decimal(15, 2)
+  type        String
+  description String?
+  date        DateTime
+  source      String   @default("manual")
+  emailRef    String?
+  tags        String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account  Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([userId, type])
+}
+
+model Investment {
+  id           String    @id @default(cuid())
+  userId       String
+  symbol       String
+  name         String
+  type         String
+  quantity     Decimal   @db.Decimal(15, 6)
+  avgBuyPrice  Decimal   @db.Decimal(15, 2)
+  currentPrice Decimal?  @db.Decimal(15, 2)
+  currency     String    @default("INR")
+  lastUpdated  DateTime?
+  createdAt    DateTime  @default(now())
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dividends Dividend[]
+
+  @@index([userId])
+}
+
+model Dividend {
+  id           String   @id @default(cuid())
+  investmentId String
+  amount       Decimal  @db.Decimal(15, 2)
+  date         DateTime
+
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+}
+
+model OfflineAsset {
+  id               String    @id @default(cuid())
+  userId           String
+  name             String
+  type             String
+  purchasePrice    Decimal   @db.Decimal(15, 2)
+  currentValue     Decimal   @db.Decimal(15, 2)
+  appreciationRate Decimal?  @db.Decimal(5, 2)
+  purchaseDate     DateTime?
+  notes            String?
+  createdAt        DateTime  @default(now())
+
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents        Document[]
+  valuationHistory ValuationHistory[]
+
+  @@index([userId])
+}
+
+model ValuationHistory {
+  id             String   @id @default(cuid())
+  offlineAssetId String
+  value          Decimal  @db.Decimal(15, 2)
+  date           DateTime
+
+  offlineAsset OfflineAsset @relation(fields: [offlineAssetId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id             String   @id @default(cuid())
+  offlineAssetId String
+  name           String
+  url            String
+  uploadedAt     DateTime @default(now())
+
+  offlineAsset OfflineAsset @relation(fields: [offlineAssetId], references: [id], onDelete: Cascade)
+}
+
+model Committee {
+  id            String   @id @default(cuid())
+  userId        String
+  name          String
+  totalAmount   Decimal  @db.Decimal(15, 2)
+  monthlyAmount Decimal  @db.Decimal(15, 2)
+  totalMembers  Int
+  startDate     DateTime
+  duration      Int
+  payoutMonth   Int?
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments CommitteePayment[]
+
+  @@index([userId])
+}
+
+model CommitteePayment {
+  id          String    @id @default(cuid())
+  committeeId String
+  amount      Decimal   @db.Decimal(15, 2)
+  month       Int
+  paid        Boolean   @default(false)
+  paidDate    DateTime?
+
+  committee Committee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+}
+
+model Goal {
+  id            String    @id @default(cuid())
+  userId        String
+  name          String
+  targetAmount  Decimal   @db.Decimal(15, 2)
+  currentAmount Decimal   @default(0) @db.Decimal(15, 2)
+  deadline      DateTime?
+  icon          String?
+  color         String?
+  status        String    @default("active")
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Budget {
+  id         String  @id @default(cuid())
+  userId     String
+  categoryId String
+  amount     Decimal @db.Decimal(15, 2)
+  month      Int
+  year       Int
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId, month, year])
+}
+
+model Liability {
+  id           String    @id @default(cuid())
+  userId       String
+  name         String
+  type         String
+  principal    Decimal   @db.Decimal(15, 2)
+  outstanding  Decimal   @db.Decimal(15, 2)
+  interestRate Decimal   @db.Decimal(5, 2)
+  emiAmount    Decimal?  @db.Decimal(15, 2)
+  startDate    DateTime
+  endDate      DateTime?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String
+  read      Boolean  @default(false)
+  data      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
