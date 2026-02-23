@@ -7,7 +7,7 @@ import {
   LayoutDashboard,
   Receipt,
   Plus,
-  Landmark,
+  CalendarDays,
   Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,11 +18,12 @@ const navItems = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/expenses", label: "Expenses", icon: Receipt },
   { href: "#add", label: "Add", icon: Plus, isAdd: true },
-  { href: "/accounts", label: "Accounts", icon: Landmark },
+  { href: "/monthly", label: "Monthly", icon: CalendarDays },
   { href: "/more", label: "More", icon: Menu },
 ];
 
 const morePages = [
+  "/accounts",
   "/investments",
   "/offline-assets",
   "/committees",
@@ -30,6 +31,7 @@ const morePages = [
   "/budgets",
   "/net-worth",
   "/analytics",
+  "/sips",
   "/notifications",
   "/settings",
   "/onboarding",
@@ -69,7 +71,7 @@ export function BottomNav() {
             return (
               <Link
                 key={item.href}
-                href={item.href === "/more" ? "/settings" : item.href}
+                href={item.href}
                 className={cn(
                   "flex flex-col items-center gap-0.5 px-3 py-1 relative min-w-[48px]",
                   isActive ? "text-primary" : "text-muted-foreground"

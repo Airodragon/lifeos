@@ -28,6 +28,7 @@ model User {
   goals            Goal[]
   budgets          Budget[]
   liabilities      Liability[]
+  sips             SIP[]
   notifications    Notification[]
   emailConnections EmailConnection[]
 }
@@ -248,6 +249,29 @@ model Liability {
   startDate    DateTime
   endDate      DateTime?
   createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model SIP {
+  id            String    @id @default(cuid())
+  userId        String
+  name          String
+  fundName      String
+  amount        Decimal   @db.Decimal(15, 2)
+  frequency     String    @default("monthly")
+  sipDate       Int       @default(1)
+  startDate     DateTime
+  endDate       DateTime?
+  totalInvested Decimal   @default(0) @db.Decimal(15, 2)
+  currentValue  Decimal   @default(0) @db.Decimal(15, 2)
+  units         Decimal   @default(0) @db.Decimal(15, 6)
+  expectedReturn Decimal  @default(12) @db.Decimal(5, 2)
+  status        String    @default("active")
+  lastDebitDate DateTime?
+  createdAt     DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
