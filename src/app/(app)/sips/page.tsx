@@ -22,7 +22,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { formatCurrency, formatPercent, toDecimal } from "@/lib/utils";
+import { toDecimal } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
 interface SIP {
@@ -43,6 +44,7 @@ interface SIP {
 }
 
 export default function SIPsPage() {
+  const { fc: formatCurrency, fp: formatPercent } = useFormat();
   const [sips, setSips] = useState<SIP[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);

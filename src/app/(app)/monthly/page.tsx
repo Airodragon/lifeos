@@ -17,7 +17,8 @@ import { DonutChart } from "@/components/charts/donut-chart";
 import { BarChart } from "@/components/charts/bar-chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { formatCurrency, getMonthName } from "@/lib/utils";
+import { getMonthName } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 
 interface MonthlyData {
   month: number;
@@ -38,6 +39,7 @@ interface MonthlyData {
 }
 
 export default function MonthlyOverviewPage() {
+  const { fc: formatCurrency } = useFormat();
   const [data, setData] = useState<MonthlyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(new Date().getMonth() + 1);

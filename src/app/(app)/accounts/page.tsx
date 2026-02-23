@@ -22,7 +22,8 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, toDecimal } from "@/lib/utils";
+import { toDecimal } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
 interface Account {
@@ -63,6 +64,7 @@ const TYPE_ICONS: Record<string, typeof Landmark> = {
 };
 
 export default function AccountsPage() {
+  const { fc: formatCurrency } = useFormat();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);

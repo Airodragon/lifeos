@@ -7,24 +7,22 @@ import {
   User,
   Shield,
   Mail,
-  Palette,
   Tag,
-  Download,
   LogOut,
   ChevronRight,
   Moon,
   Sun,
-  Smartphone,
+  EyeOff,
+  Eye,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { useBiometric } from "@/hooks/use-biometric";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { usePrivacy } from "@/contexts/privacy-context";
 
 const settingsItems = [
   { href: "/settings/profile", icon: User, label: "Profile", description: "Name, email, currency" },
-  { href: "/settings/security", icon: Shield, label: "Security", description: "Password, biometrics" },
+  { href: "/settings/security", icon: Shield, label: "Security", description: "Passkeys, password" },
   { href: "/settings/email", icon: Mail, label: "Email Sync", description: "Connect Gmail for auto-tracking" },
   { href: "#categories", icon: Tag, label: "Categories", description: "Manage expense categories" },
 ];
@@ -33,17 +31,7 @@ export default function SettingsPage() {
   const { data: session } = useSession();
   const { logout } = useAuth();
   const { theme, setTheme } = useTheme();
-  const { isSupported, register } = useBiometric();
-
-  const handleBiometricSetup = async () => {
-    try {
-      const result = await register();
-      if (result) toast.success("Face ID enabled");
-      else toast.error("Setup failed");
-    } catch {
-      toast.error("Biometric setup failed");
-    }
-  };
+  const { privacyMode, togglePrivacy } = usePrivacy();
 
   return (
     <div className="p-4 space-y-4">
@@ -87,9 +75,41 @@ export default function SettingsPage() {
 
       <Card>
         <CardContent className="p-4 space-y-4">
+          {/* Privacy Mode */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Palette className="w-5 h-5 text-muted-foreground" />
+              {privacyMode ? (
+                <EyeOff className="w-5 h-5 text-muted-foreground" />
+              ) : (
+                <Eye className="w-5 h-5 text-muted-foreground" />
+              )}
+              <div>
+                <span className="text-sm font-medium">Privacy Mode</span>
+                <p className="text-[10px] text-muted-foreground">Hide all amounts & balances</p>
+              </div>
+            </div>
+            <button
+              onClick={togglePrivacy}
+              className={`relative w-12 h-7 rounded-full transition-colors ${
+                privacyMode ? "bg-primary" : "bg-muted"
+              }`}
+            >
+              <div
+                className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${
+                  privacyMode ? "translate-x-5.5" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Theme */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {theme === "dark" ? (
+                <Moon className="w-5 h-5 text-muted-foreground" />
+              ) : (
+                <Sun className="w-5 h-5 text-muted-foreground" />
+              )}
               <span className="text-sm font-medium">Theme</span>
             </div>
             <div className="flex gap-1 bg-muted rounded-lg p-0.5">
@@ -113,18 +133,6 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-
-          {isSupported && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Smartphone className="w-5 h-5 text-muted-foreground" />
-                <span className="text-sm font-medium">Face ID / Biometrics</span>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleBiometricSetup}>
-                Enable
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
 

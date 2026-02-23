@@ -22,7 +22,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { formatCurrency, formatDate, toDecimal } from "@/lib/utils";
+import { formatDate, toDecimal } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
 interface FD {
@@ -78,6 +79,7 @@ function daysElapsed(startDate: string): number {
 }
 
 export default function FixedDepositsPage() {
+  const { fc: formatCurrency } = useFormat();
   const [fds, setFds] = useState<FD[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);

@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, formatDate, toDecimal } from "@/lib/utils";
+import { formatDate, toDecimal } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 
 interface Transaction {
   id: string;
@@ -51,6 +52,7 @@ const typeIcon = {
 };
 
 export default function ExpensesPage() {
+  const { fc: formatCurrency } = useFormat();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);

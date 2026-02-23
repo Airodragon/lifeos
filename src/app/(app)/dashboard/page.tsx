@@ -18,7 +18,8 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProgressRing } from "@/components/charts/progress-ring";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, formatDate, toDecimal } from "@/lib/utils";
+import { formatDate, toDecimal } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 
 interface DashboardData {
   netWorth: number;
@@ -109,6 +110,7 @@ export default function DashboardPage() {
     );
   }
 
+  const { fc: formatCurrency, fp: formatPercent } = useFormat();
   const nw = netWorthData;
   const investGain = nw?.breakdown.investmentGain || 0;
   const investGainPercent = nw?.breakdown.investmentCost

@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
+import { startAuthentication } from "@simplewebauthn/browser";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -19,9 +22,22 @@ type FormData = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const router = useRouter();
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.PublicKeyCredential) {
+      PublicKeyCredential.isConditionalMediationAvailable?.().then((available) => {
+        setPasskeyAvailable(available || !!window.PublicKeyCredential);
+      }).catch(() => {
+        setPasskeyAvailable(!!window.PublicKeyCredential);
+      });
+    }
+  }, []);
 
   const {
     register,
@@ -43,6 +59,47 @@ export default function LoginPage() {
     }
   };
 
+  const handlePasskeyLogin = async () => {
+    setError("");
+    setPasskeyLoading(true);
+    try {
+      const optionsRes = await fetch("/api/webauthn/authenticate/begin");
+      if (!optionsRes.ok) throw new Error("Failed to start passkey auth");
+      const options = await optionsRes.json();
+
+      const assertion = await startAuthentication(options);
+
+      const verifyRes = await fetch("/api/webauthn/authenticate/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(assertion),
+      });
+
+      const result = await verifyRes.json();
+      if (!result.verified || !result.email) {
+        throw new Error("Passkey verification failed");
+      }
+
+      const signInResult = await signIn("credentials", {
+        email: result.email,
+        password: "__passkey__",
+        passkey: "true",
+        redirect: false,
+      });
+
+      if (signInResult?.error) {
+        throw new Error("Sign-in failed");
+      }
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Passkey login failed");
+    } finally {
+      setPasskeyLoading(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -61,7 +118,7 @@ export default function LoginPage() {
           label="Email"
           type="email"
           placeholder="you@example.com"
-          autoComplete="email"
+          autoComplete="email webauthn"
           error={errors.email?.message}
           {...register("email")}
         />
@@ -100,6 +157,30 @@ export default function LoginPage() {
           )}
         </Button>
       </form>
+
+      {passkeyAvailable && (
+        <>
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-border/50" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="flex-1 h-px bg-border/50" />
+          </div>
+
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={handlePasskeyLogin}
+            disabled={passkeyLoading}
+          >
+            {passkeyLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <KeyRound className="w-4 h-4 mr-2" />
+            )}
+            Sign in with Passkey
+          </Button>
+        </>
+      )}
     </motion.div>
   );
 }

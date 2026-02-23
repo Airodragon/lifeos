@@ -17,7 +17,8 @@ import { DonutChart } from "@/components/charts/donut-chart";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatPercent, toDecimal } from "@/lib/utils";
+import { toDecimal } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
 interface Investment {
@@ -39,6 +40,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export default function InvestmentsPage() {
+  const { fc: formatCurrency, fp: formatPercent } = useFormat();
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);

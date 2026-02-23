@@ -10,7 +10,8 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatPercent, formatDate, toDecimal } from "@/lib/utils";
+import { formatDate, toDecimal } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
 interface OfflineAsset {
@@ -41,6 +42,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function OfflineAssetsPage() {
+  const { fc: formatCurrency, fp: formatPercent } = useFormat();
   const [assets, setAssets] = useState<OfflineAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
