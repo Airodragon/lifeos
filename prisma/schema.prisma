@@ -181,13 +181,13 @@ model Committee {
   id            String   @id @default(cuid())
   userId        String
   name          String
-  totalAmount   Decimal  @db.Decimal(15, 2)
-  monthlyAmount Decimal  @db.Decimal(15, 2)
-  totalMembers  Int
+  payoutAmount  Decimal  @db.Decimal(15, 2)
+  totalMembers  Int      @default(15)
   startDate     DateTime
+  paymentDay    Int      @default(1)
   duration      Int
-  payoutMonth   Int?
   status        String   @default("active")
+  notes         String?
   createdAt     DateTime @default(now())
 
   user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -199,7 +199,7 @@ model Committee {
 model CommitteePayment {
   id          String    @id @default(cuid())
   committeeId String
-  amount      Decimal   @db.Decimal(15, 2)
+  amount      Decimal?  @db.Decimal(15, 2)
   month       Int
   paid        Boolean   @default(false)
   paidDate    DateTime?

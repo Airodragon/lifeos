@@ -25,17 +25,17 @@ export async function POST(req: Request) {
       data: {
         userId: user.id,
         name: body.name,
-        totalAmount: body.totalAmount,
-        monthlyAmount: body.monthlyAmount,
-        totalMembers: body.totalMembers,
+        payoutAmount: body.payoutAmount,
+        totalMembers: body.totalMembers || body.duration,
         startDate: new Date(body.startDate),
+        paymentDay: body.paymentDay || 1,
         duration: body.duration,
-        payoutMonth: body.payoutMonth,
+        notes: body.notes || null,
         payments: {
           createMany: {
             data: Array.from({ length: body.duration }, (_, i) => ({
-              amount: body.monthlyAmount,
               month: i + 1,
+              amount: null,
               paid: false,
             })),
           },
@@ -45,7 +45,8 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json(committee, { status: 201 });
-  } catch {
+  } catch (error) {
+    console.error("Committee create error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

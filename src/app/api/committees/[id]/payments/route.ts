@@ -18,12 +18,20 @@ export async function PUT(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const updateData: Record<string, unknown> = {};
+
+    if (body.paid !== undefined) {
+      updateData.paid = body.paid;
+      updateData.paidDate = body.paid ? new Date() : null;
+    }
+
+    if (body.amount !== undefined) {
+      updateData.amount = body.amount;
+    }
+
     const payment = await prisma.committeePayment.update({
       where: { id: body.paymentId },
-      data: {
-        paid: body.paid,
-        paidDate: body.paid ? new Date() : null,
-      },
+      data: updateData,
     });
 
     return NextResponse.json(payment);
