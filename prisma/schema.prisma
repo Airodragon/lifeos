@@ -28,6 +28,7 @@ model User {
   goals            Goal[]
   budgets          Budget[]
   liabilities      Liability[]
+  fixedDeposits    FixedDeposit[]
   sips             SIP[]
   notifications    Notification[]
   emailConnections EmailConnection[]
@@ -249,6 +250,27 @@ model Liability {
   startDate    DateTime
   endDate      DateTime?
   createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model FixedDeposit {
+  id              String    @id @default(cuid())
+  userId          String
+  bankName        String
+  accountNumber   String?
+  principal       Decimal   @db.Decimal(15, 2)
+  interestRate    Decimal   @db.Decimal(5, 2)
+  compounding     String    @default("quarterly")
+  startDate       DateTime
+  maturityDate    DateTime
+  maturityAmount  Decimal   @db.Decimal(15, 2)
+  isAutoRenew     Boolean   @default(false)
+  notes           String?
+  status          String    @default("active")
+  createdAt       DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

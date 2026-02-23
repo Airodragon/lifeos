@@ -58,10 +58,43 @@ export default function InvestmentsPage() {
     const data = await res.json();
     setInvestments(data || []);
     setLoading(false);
+    return data || [];
+  };
+
+  const autoRefreshPrices = async (invs: Investment[]) => {
+    if (!invs.length) return;
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/market-data/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbols: invs.map((i) => i.symbol) }),
+      });
+      if (res.ok) {
+        const quotes: Record<string, number> = await res.json();
+        const updates = invs
+          .filter((inv) => quotes[inv.symbol])
+          .map((inv) =>
+            fetch(`/api/investments/${inv.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ currentPrice: quotes[inv.symbol], lastUpdated: new Date().toISOString() }),
+            })
+          );
+        await Promise.all(updates);
+        await fetchInvestments();
+      }
+    } catch {
+      // silent fail for auto-refresh
+    }
+    setRefreshing(false);
   };
 
   useEffect(() => {
-    fetchInvestments();
+    fetchInvestments().then((data) => {
+      if (data?.length) autoRefreshPrices(data);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSearch = async (q: string) => {
@@ -99,20 +132,7 @@ export default function InvestmentsPage() {
   };
 
   const handleRefresh = async () => {
-    setRefreshing(true);
-    for (const inv of investments) {
-      const res = await fetch(`/api/market-data?symbol=${inv.symbol}`);
-      if (res.ok) {
-        const quote = await res.json();
-        await fetch(`/api/investments/${inv.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ currentPrice: quote.price, lastUpdated: new Date().toISOString() }),
-        });
-      }
-    }
-    await fetchInvestments();
-    setRefreshing(false);
+    await autoRefreshPrices(investments);
     toast.success("Prices updated");
   };
 

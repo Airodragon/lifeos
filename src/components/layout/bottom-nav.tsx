@@ -24,6 +24,7 @@ const navItems = [
 
 const morePages = [
   "/accounts",
+  "/fixed-deposits",
   "/investments",
   "/offline-assets",
   "/committees",
