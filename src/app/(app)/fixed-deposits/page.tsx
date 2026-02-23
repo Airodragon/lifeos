@@ -276,23 +276,23 @@ export default function FixedDepositsPage() {
                   >
                     <Card className={isMatured ? "border-success/30" : ""}>
                       <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isMatured ? "bg-success/10" : "bg-primary/10"}`}>
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isMatured ? "bg-success/10" : "bg-teal-500/10"}`}>
                               {isMatured ? (
                                 <CheckCircle2 className="w-5 h-5 text-success" />
                               ) : (
-                                <Landmark className="w-5 h-5 text-primary" />
+                                <Landmark className="w-5 h-5 text-teal-500" />
                               )}
                             </div>
-                            <div>
-                              <p className="text-sm font-semibold">{fd.bankName}</p>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold truncate">{fd.bankName}</p>
                               {fd.accountNumber && (
-                                <p className="text-[10px] text-muted-foreground">A/c: {fd.accountNumber}</p>
+                                <p className="text-[10px] text-muted-foreground truncate">A/c: {fd.accountNumber}</p>
                               )}
                             </div>
                           </div>
-                          <Badge variant={isMatured ? "success" : "default"}>
+                          <Badge variant={isMatured ? "success" : "default"} className="shrink-0">
                             {isMatured ? "Matured" : `${remaining}d left`}
                           </Badge>
                         </div>

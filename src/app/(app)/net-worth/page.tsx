@@ -10,7 +10,8 @@ import { Modal } from "@/components/ui/modal";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, formatPercent, toDecimal } from "@/lib/utils";
+import { toDecimal } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
 interface NetWorthData {
@@ -38,6 +39,7 @@ interface NetWorthData {
 }
 
 export default function NetWorthPage() {
+  const { fc: formatCurrency, fp: formatPercent } = useFormat();
   const [data, setData] = useState<NetWorthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddLoan, setShowAddLoan] = useState(false);

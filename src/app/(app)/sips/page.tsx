@@ -218,19 +218,19 @@ export default function SIPsPage() {
               <CardContent>
                 <div className="space-y-2">
                   {upcomingSips.slice(0, 3).map((sip) => (
-                    <div key={sip.id} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Calendar className="w-3.5 h-3.5 text-primary" />
+                    <div key={sip.id} className="flex items-center justify-between gap-2 text-sm">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                          <Calendar className="w-3.5 h-3.5 text-emerald-500" />
                         </div>
-                        <div>
-                          <p className="text-xs font-medium">{sip.name}</p>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium truncate">{sip.name}</p>
                           <p className="text-[10px] text-muted-foreground">
                             {sip.daysUntil === 0 ? "Today" : `In ${sip.daysUntil} days`} (Day {sip.sipDate})
                           </p>
                         </div>
                       </div>
-                      <span className="text-xs font-semibold">{formatCurrency(toDecimal(sip.amount))}</span>
+                      <span className="text-xs font-semibold shrink-0">{formatCurrency(toDecimal(sip.amount))}</span>
                     </div>
                   ))}
                 </div>
@@ -262,17 +262,17 @@ export default function SIPsPage() {
                   >
                     <Card className={sip.status === "paused" ? "opacity-60" : ""}>
                       <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                              <ArrowUpRight className="w-5 h-5 text-primary" />
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                              <ArrowUpRight className="w-5 h-5 text-emerald-500" />
                             </div>
-                            <div>
-                              <p className="text-sm font-semibold">{sip.name}</p>
-                              <p className="text-[10px] text-muted-foreground">{sip.fundName}</p>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold truncate">{sip.name}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{sip.fundName}</p>
                             </div>
                           </div>
-                          <Badge variant={sip.status === "active" ? "success" : "secondary"}>
+                          <Badge variant={sip.status === "active" ? "success" : "secondary"} className="shrink-0">
                             {sip.status}
                           </Badge>
                         </div>

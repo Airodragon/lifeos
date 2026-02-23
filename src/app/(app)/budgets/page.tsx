@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
-import { formatCurrency, getMonthName, toDecimal } from "@/lib/utils";
+import { getMonthName, toDecimal } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
 interface BudgetItem {
@@ -28,6 +29,7 @@ interface Category {
 }
 
 export default function BudgetsPage() {
+  const { fc: formatCurrency } = useFormat();
   const [budgets, setBudgets] = useState<BudgetItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);

@@ -79,6 +79,7 @@ const fadeUp = {
 };
 
 export default function DashboardPage() {
+  const { fc: formatCurrency } = useFormat();
   const [netWorthData, setNetWorthData] = useState<DashboardData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -110,7 +111,6 @@ export default function DashboardPage() {
     );
   }
 
-  const { fc: formatCurrency, fp: formatPercent } = useFormat();
   const nw = netWorthData;
   const investGain = nw?.breakdown.investmentGain || 0;
   const investGainPercent = nw?.breakdown.investmentCost
@@ -185,21 +185,21 @@ export default function DashboardPage() {
                     <Link
                       key={acc.id}
                       href="/accounts"
-                      className="flex items-center justify-between group"
+                      className="flex items-center justify-between gap-2 group"
                     >
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <div
                           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                           style={{ backgroundColor: `${color}15`, color }}
                         >
                           <Icon className="w-4 h-4" />
                         </div>
-                        <span className="text-sm font-medium group-hover:text-primary transition-colors">
+                        <span className="text-sm font-medium group-hover:text-primary transition-colors truncate">
                           {acc.name}
                         </span>
                       </div>
                       <span
-                        className={`text-sm font-semibold ${
+                        className={`text-sm font-semibold shrink-0 ${
                           balance < 0 ? "text-destructive" : ""
                         }`}
                       >

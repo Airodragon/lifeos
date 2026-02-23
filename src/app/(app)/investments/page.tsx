@@ -247,23 +247,23 @@ export default function InvestmentsPage() {
               >
                 <Card>
                   <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs text-white"
+                          className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0"
                           style={{ backgroundColor: TYPE_COLORS[inv.type] || "#6b7280" }}
                         >
                           {inv.symbol.slice(0, 3)}
                         </div>
-                        <div>
-                          <p className="text-sm font-medium">{inv.name}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{inv.name}</p>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-muted-foreground">{inv.symbol}</span>
+                            <span className="text-xs text-muted-foreground truncate">{inv.symbol}</span>
                             <Badge variant="secondary">{inv.type}</Badge>
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <p className="text-sm font-semibold">
                           {formatCurrency(inv.value)}
                         </p>

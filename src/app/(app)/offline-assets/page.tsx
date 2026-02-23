@@ -141,17 +141,17 @@ export default function OfflineAssetsPage() {
               >
                 <Card>
                   <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
-                          <Icon className="w-5 h-5 text-muted-foreground" />
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                          <Icon className="w-5 h-5 text-amber-500" />
                         </div>
-                        <div>
-                          <p className="font-medium">{asset.name}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate">{asset.name}</p>
                           <Badge variant="secondary">{TYPE_LABELS[asset.type]}</Badge>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <p className="font-semibold">{formatCurrency(current)}</p>
                         <p
                           className={`text-xs ${gain >= 0 ? "text-success" : "text-destructive"}`}

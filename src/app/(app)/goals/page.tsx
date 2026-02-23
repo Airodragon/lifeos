@@ -11,7 +11,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ProgressRing } from "@/components/charts/progress-ring";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, toDecimal } from "@/lib/utils";
+import { toDecimal } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
 interface Goal {
@@ -28,6 +29,7 @@ interface Goal {
 const GOAL_COLORS = ["#22c55e", "#3b82f6", "#f97316", "#8b5cf6", "#ec4899", "#14b8a6", "#eab308"];
 
 export default function GoalsPage() {
+  const { fc: formatCurrency } = useFormat();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -146,8 +148,8 @@ export default function GoalsPage() {
                         label={`${Math.round(percent)}%`}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className="font-semibold">{goal.name}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold truncate">{goal.name}</p>
                           {isCompleted ? (
                             <Badge variant="success">
                               <Trophy className="w-3 h-3 mr-1" /> Done

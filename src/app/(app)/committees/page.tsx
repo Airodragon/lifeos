@@ -280,23 +280,23 @@ export default function CommitteesPage() {
                     <Card className={isComplete ? "border-success/30" : ""}>
                       <CardContent className="p-4">
                         {/* Header */}
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isComplete ? "bg-success/10" : "bg-primary/10"}`}>
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isComplete ? "bg-success/10" : "bg-orange-500/10"}`}>
                               {isComplete ? (
                                 <CheckCircle2 className="w-5 h-5 text-success" />
                               ) : (
-                                <Users className="w-5 h-5 text-primary" />
+                                <Users className="w-5 h-5 text-orange-500" />
                               )}
                             </div>
-                            <div>
-                              <p className="text-sm font-semibold">{committee.name}</p>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold truncate">{committee.name}</p>
                               <p className="text-[10px] text-muted-foreground">
                                 {committee.duration} months · Day {committee.paymentDay}
                               </p>
                             </div>
                           </div>
-                          <Badge variant={isComplete ? "success" : committee.status === "active" ? "default" : "secondary"}>
+                          <Badge variant={isComplete ? "success" : committee.status === "active" ? "default" : "secondary"} className="shrink-0">
                             {isComplete ? "Complete" : committee.status}
                           </Badge>
                         </div>

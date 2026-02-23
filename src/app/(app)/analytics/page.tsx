@@ -8,7 +8,8 @@ import { DonutChart } from "@/components/charts/donut-chart";
 import { BarChart } from "@/components/charts/bar-chart";
 import { LineChart } from "@/components/charts/line-chart";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, toDecimal, getMonthName } from "@/lib/utils";
+import { toDecimal, getMonthName } from "@/lib/utils";
+import { useFormat } from "@/hooks/use-format";
 import { CATEGORY_COLORS } from "@/types";
 
 interface Transaction {
@@ -20,6 +21,7 @@ interface Transaction {
 }
 
 export default function AnalyticsPage() {
+  const { fc: formatCurrency } = useFormat();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("6m");
