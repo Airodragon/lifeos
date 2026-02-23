@@ -17,6 +17,7 @@ A minimalist, modern personal finance and life management dashboard — built as
 - **Notifications** — Bill reminders, investment alerts, committee payment dues
 - **Security** — Email/password auth, Face ID / biometric via WebAuthn, encrypted data storage
 
+
 ## Tech Stack
 
 - **Framework:** Next.js 16 (App Router, TypeScript)
