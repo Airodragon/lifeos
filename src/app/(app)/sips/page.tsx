@@ -14,6 +14,7 @@ import {
   Bell,
   ArrowUpRight,
   RefreshCw,
+  Search,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,10 @@ export default function SIPsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [refreshingLive, setRefreshingLive] = useState(false);
   const [showUpdate, setShowUpdate] = useState<SIP | null>(null);
+  const [searchResults, setSearchResults] = useState<
+    { symbol: string; name: string; type: string }[]
+  >([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [updateForm, setUpdateForm] = useState({ totalInvested: "", currentValue: "", units: "" });
   const [form, setForm] = useState({
     name: "",
@@ -76,7 +81,35 @@ export default function SIPsPage() {
 
   useEffect(() => {
     fetchSips();
+    const timer = setInterval(() => {
+      fetch("/api/sips/refresh", { method: "POST" })
+        .then(() => fetchSips())
+        .catch(() => {});
+    }, 5 * 60 * 1000);
+    return () => clearInterval(timer);
   }, [fetchSips]);
+
+  const handleSearch = async (q: string) => {
+    setSearchQuery(q);
+    if (q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const res = await fetch(`/api/market-data?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    setSearchResults(data || []);
+  };
+
+  const selectSymbol = (result: { symbol: string; name: string }) => {
+    setForm((p) => ({
+      ...p,
+      symbol: result.symbol,
+      fundName: p.fundName || result.name,
+      name: p.name || result.name,
+    }));
+    setSearchResults([]);
+    setSearchQuery("");
+  };
 
   const handleAdd = async () => {
     if (!form.name || !form.fundName || !form.amount) return;
@@ -109,7 +142,9 @@ export default function SIPsPage() {
       if (!res.ok) {
         toast.error(data.error || "Live refresh failed");
       } else {
-        toast.success(`Updated ${data.updated ?? 0} SIP(s) with live price`);
+        toast.success(
+          `Prices updated: ${data.priceUpdated ?? 0}, installments posted: ${data.installmentsPosted ?? 0}`
+        );
         await fetchSips();
       }
     } finally {
@@ -387,6 +422,29 @@ export default function SIPsPage() {
       {/* Add SIP Modal */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add SIP">
         <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              placeholder="Search MF/ETF symbol..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="w-full h-11 pl-9 pr-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            {searchResults.length > 0 && (
+              <div className="absolute top-full mt-1 w-full bg-card border border-border rounded-xl shadow-lg z-10 max-h-48 overflow-auto">
+                {searchResults.map((r) => (
+                  <button
+                    key={r.symbol}
+                    onClick={() => selectSymbol(r)}
+                    className="w-full text-left px-3 py-2 hover:bg-muted text-sm"
+                  >
+                    <span className="font-medium">{r.symbol}</span>
+                    <span className="text-muted-foreground ml-2">{r.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Input label="SIP Name" placeholder="e.g., Nifty 50 SIP" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
           <Input label="Fund Name" placeholder="e.g., Nippon India Nifty 50 BeES" value={form.fundName} onChange={(e) => setForm((p) => ({ ...p, fundName: e.target.value }))} />
           <Input label="Market Symbol (optional for live data)" placeholder="e.g., NIFTYBEES.NS" value={form.symbol} onChange={(e) => setForm((p) => ({ ...p, symbol: e.target.value.toUpperCase() }))} />

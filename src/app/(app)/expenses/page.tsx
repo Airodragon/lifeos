@@ -9,6 +9,7 @@ import {
   Search,
   Calendar,
   ArrowLeftRight,
+  Upload,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
@@ -19,6 +20,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
+import { toast } from "sonner";
 
 interface Transaction {
   id: string;
@@ -51,6 +53,11 @@ const typeIcon = {
   transfer: ArrowLeftRight,
 };
 
+const SAMPLE_CSV = `Date,Description,Debit,Credit
+2026-02-01,UPI - Grocery Store,1250.00,
+2026-02-02,Salary,,85000.00
+2026-02-03,Electricity Bill,2100.50,`;
+
 export default function ExpensesPage() {
   const { fc: formatCurrency } = useFormat();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -60,6 +67,12 @@ export default function ExpensesPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importForm, setImportForm] = useState({
+    accountId: "",
+    csvText: "",
+  });
   const [formData, setFormData] = useState({
     amount: "",
     type: "expense",
@@ -117,6 +130,48 @@ export default function ExpensesPage() {
   const handleDelete = async (id: string) => {
     await fetch(`/api/transactions/${id}`, { method: "DELETE" });
     fetchData();
+  };
+
+  const handleImport = async () => {
+    if (!importForm.csvText.trim()) return;
+    setImporting(true);
+    try {
+      const res = await fetch("/api/transactions/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(importForm),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Import failed");
+        return;
+      }
+      toast.success(
+        `Imported ${data.imported} txn • matched ${data.matchedExisting} • skipped ${data.skipped}`
+      );
+      setImportForm({ accountId: "", csvText: "" });
+      setShowImportModal(false);
+      fetchData();
+    } catch {
+      toast.error("Import failed");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleImportFile = async (file: File | null) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      toast.error("Please upload a CSV file");
+      return;
+    }
+    try {
+      const text = await file.text();
+      setImportForm((p) => ({ ...p, csvText: text }));
+      toast.success("CSV loaded. Review and import.");
+    } catch {
+      toast.error("Could not read CSV file");
+    }
   };
 
   const filtered = transactions.filter((t) =>
@@ -185,6 +240,11 @@ export default function ExpensesPage() {
           className="w-full h-10 pl-9 pr-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
+
+      <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}>
+        <Upload className="w-4 h-4 mr-1" />
+        Import Statement CSV
+      </Button>
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -358,6 +418,82 @@ export default function ExpensesPage() {
           />
           <Button onClick={handleAdd} className="w-full" disabled={!formData.amount}>
             Add Transaction
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Import Bank Statement CSV"
+      >
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Map to Account (optional)</label>
+            <select
+              value={importForm.accountId}
+              onChange={(e) =>
+                setImportForm((p) => ({
+                  ...p,
+                  accountId: e.target.value,
+                }))
+              }
+              className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
+            >
+              <option value="">No account mapping</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">CSV Content</label>
+            <div className="flex flex-wrap gap-2">
+              <label className="inline-flex items-center justify-center h-9 px-3 rounded-xl border border-input text-sm cursor-pointer hover:bg-muted">
+                Choose CSV File
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => handleImportFile(e.target.files?.[0] || null)}
+                />
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setImportForm((p) => ({ ...p, csvText: SAMPLE_CSV }))}
+              >
+                Use Sample CSV
+              </Button>
+            </div>
+            <textarea
+              rows={10}
+              value={importForm.csvText}
+              onChange={(e) =>
+                setImportForm((p) => ({
+                  ...p,
+                  csvText: e.target.value,
+                }))
+              }
+              placeholder="Paste CSV with headers like Date, Description/Narration, Amount or Debit/Credit"
+              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <p className="text-xs text-muted-foreground">
+              Duplicate rows are auto-reconciled. Supported headers: Date, Description/Narration,
+              Amount or Debit/Credit.
+            </p>
+          </div>
+
+          <Button
+            onClick={handleImport}
+            className="w-full"
+            disabled={importing || !importForm.csvText.trim()}
+          >
+            {importing ? "Importing..." : "Import & Reconcile"}
           </Button>
         </div>
       </Modal>

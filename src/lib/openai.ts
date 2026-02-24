@@ -89,6 +89,13 @@ export interface FinancialInsightResult {
   opportunities: string[];
 }
 
+export interface WeeklyCfoBriefResult {
+  summary: string;
+  wins: string[];
+  risks: string[];
+  nextActions: string[];
+}
+
 export async function generateFinancialInsights(input: {
   currency: string;
   monthIncome: number;
@@ -135,6 +142,55 @@ Return ONLY valid JSON, no markdown:
       opportunities: [
         "Shift irregular expenses into planned monthly budgets.",
         "Automate part of your monthly investing.",
+      ],
+    };
+  }
+}
+
+export async function generateWeeklyCfoBrief(input: {
+  currency: string;
+  weeklyIncome: number;
+  weeklyExpense: number;
+  weeklySavings: number;
+  largestExpenses: Array<{ description: string; amount: number }>;
+  upcomingPayments: Array<{ name: string; amount: number; dueInDays: number }>;
+  portfolioChangePercent: number;
+}): Promise<WeeklyCfoBriefResult> {
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const prompt = `You are a personal CFO assistant. Analyze this weekly snapshot and provide concise insights.
+
+Snapshot:
+- Currency: ${input.currency}
+- Weekly income: ${input.weeklyIncome}
+- Weekly expense: ${input.weeklyExpense}
+- Weekly savings: ${input.weeklySavings}
+- Largest expenses: ${JSON.stringify(input.largestExpenses)}
+- Upcoming payments: ${JSON.stringify(input.upcomingPayments)}
+- Portfolio weekly change (%): ${input.portfolioChangePercent}
+
+Return ONLY valid JSON:
+{
+  "summary": "2-3 sentence weekly summary",
+  "wins": ["2-4 positive highlights"],
+  "risks": ["0-3 risks to watch"],
+  "nextActions": ["3-5 concrete actions for next 7 days"]
+}`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonStr = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    return JSON.parse(jsonStr) as WeeklyCfoBriefResult;
+  } catch {
+    return {
+      summary:
+        "This week is stable overall. Keep expenses controlled and direct surplus toward your priority goals.",
+      wins: ["You stayed on top of transaction tracking this week."],
+      risks: ["Watch recurring discretionary spending categories."],
+      nextActions: [
+        "Set a fixed spend cap for the next 7 days.",
+        "Pre-plan upcoming bill payments to avoid surprises.",
+        "Auto-transfer part of surplus to investments/goals.",
       ],
     };
   }

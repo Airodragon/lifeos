@@ -26,6 +26,15 @@ interface Goal {
   status: string;
 }
 
+interface GoalProjection {
+  goalId: string;
+  monthlyRequired: number;
+  monthsLeft: number;
+  projectedAtDeadline: number;
+  probability: number;
+  status: "on_track" | "at_risk" | "off_track";
+}
+
 const GOAL_COLORS = ["#22c55e", "#3b82f6", "#f97316", "#8b5cf6", "#ec4899", "#14b8a6", "#eab308"];
 
 export default function GoalsPage() {
@@ -35,6 +44,7 @@ export default function GoalsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [showUpdate, setShowUpdate] = useState<Goal | null>(null);
   const [updateAmount, setUpdateAmount] = useState("");
+  const [projectionMap, setProjectionMap] = useState<Record<string, GoalProjection>>({});
   const [form, setForm] = useState({
     name: "",
     targetAmount: "",
@@ -44,8 +54,17 @@ export default function GoalsPage() {
   });
 
   const fetchGoals = async () => {
-    const res = await fetch("/api/goals");
+    const [res, projectionRes] = await Promise.all([
+      fetch("/api/goals"),
+      fetch("/api/goals/projections"),
+    ]);
     const data = await res.json();
+    const projectionData = await projectionRes.json();
+    const map: Record<string, GoalProjection> = {};
+    for (const p of projectionData.projections || []) {
+      map[p.goalId] = p;
+    }
+    setProjectionMap(map);
     setGoals(data || []);
     setLoading(false);
   };
@@ -129,6 +148,7 @@ export default function GoalsPage() {
               );
               monthlyNeeded = remaining / monthsLeft;
             }
+            const projection = projectionMap[goal.id];
 
             return (
               <motion.div
@@ -163,6 +183,24 @@ export default function GoalsPage() {
                             </button>
                           )}
                         </div>
+                        {projection && (
+                          <div className="mt-1 flex items-center gap-2 text-[10px]">
+                            <Badge
+                              variant={
+                                projection.status === "on_track"
+                                  ? "success"
+                                  : projection.status === "at_risk"
+                                    ? "warning"
+                                    : "destructive"
+                              }
+                            >
+                              {Math.round(projection.probability)}% {projection.status.replace("_", " ")}
+                            </Badge>
+                            <span className="text-muted-foreground">
+                              Projected {formatCurrency(projection.projectedAtDeadline, "INR", true)}
+                            </span>
+                          </div>
+                        )}
                         <div className="mt-1">
                           <div className="flex justify-between text-xs text-muted-foreground mb-1">
                             <span>{formatCurrency(current, "INR", true)}</span>
@@ -179,6 +217,9 @@ export default function GoalsPage() {
                           )}
                           {monthlyNeeded > 0 && (
                             <span>Need {formatCurrency(monthlyNeeded, "INR", true)}/mo</span>
+                          )}
+                          {projection && projection.monthlyRequired > 0 && (
+                            <span>Required {formatCurrency(projection.monthlyRequired, "INR", true)}/mo</span>
                           )}
                           <button
                             onClick={() => handleDelete(goal.id)}
