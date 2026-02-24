@@ -54,7 +54,11 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export default function InvestmentsPage() {
-  const { fc: formatCurrency, fp: formatPercent } = useFormat();
+  const {
+    fc: formatCurrency,
+    fp: formatPercent,
+    fic: formatCompactCurrency,
+  } = useFormat();
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -360,13 +364,13 @@ export default function InvestmentsPage() {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-xs text-muted-foreground">Total Value</p>
-                  <p className="text-2xl font-bold">{formatCurrency(totalValue)}</p>
+                  <p className="text-2xl font-bold">{formatCompactCurrency(totalValue, "INR")}</p>
                 </div>
                 <div className="text-right">
                   <p
                     className={`text-sm font-semibold ${totalGain >= 0 ? "text-success" : "text-destructive"}`}
                   >
-                    {formatCurrency(totalGain)}
+                    {formatCompactCurrency(totalGain, "INR")}
                   </p>
                   <p
                     className={`text-xs ${totalGain >= 0 ? "text-success" : "text-destructive"}`}
@@ -412,7 +416,7 @@ export default function InvestmentsPage() {
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-sm font-semibold">
-                          {formatCurrency(inv.value)}
+                          {formatCompactCurrency(inv.value, "INR")}
                         </p>
                         <p
                           className={`text-xs ${inv.gain >= 0 ? "text-success" : "text-destructive"}`}

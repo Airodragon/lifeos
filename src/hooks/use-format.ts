@@ -2,7 +2,11 @@
 
 import { useCallback } from "react";
 import { usePrivacy } from "@/contexts/privacy-context";
-import { formatCurrency as rawFormatCurrency, formatPercent as rawFormatPercent } from "@/lib/utils";
+import {
+  formatCompactIndianCurrency as rawFormatCompactIndianCurrency,
+  formatCurrency as rawFormatCurrency,
+  formatPercent as rawFormatPercent,
+} from "@/lib/utils";
 
 const MASK = "••••";
 
@@ -28,5 +32,16 @@ export function useFormat() {
     [privacyMode]
   );
 
-  return { fc, fp, privacyMode };
+  const fic = useCallback(
+    (amount: number, currency: string = "INR") => {
+      if (privacyMode) {
+        const symbol = currency === "INR" ? "₹" : "$";
+        return `${symbol}${MASK}`;
+      }
+      return rawFormatCompactIndianCurrency(amount, currency);
+    },
+    [privacyMode]
+  );
+
+  return { fc, fp, fic, privacyMode };
 }

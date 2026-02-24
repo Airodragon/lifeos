@@ -24,6 +24,42 @@ export function formatPercent(value: number, digits: number = 1): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
 }
 
+function trimZeroes(value: string) {
+  return value.replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
+}
+
+export function formatCompactIndianCurrency(
+  amount: number,
+  currency: string = "INR"
+): string {
+  if (!Number.isFinite(amount)) return `${currency === "INR" ? "₹" : ""}0`;
+
+  const abs = Math.abs(amount);
+  const sign = amount < 0 ? "-" : "";
+  const symbol = currency === "INR" ? "₹" : "";
+
+  if (currency !== "INR") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  }
+
+  if (abs >= 10000000) {
+    return `${sign}${symbol}${trimZeroes((abs / 10000000).toFixed(2))}Cr`;
+  }
+  if (abs >= 100000) {
+    return `${sign}${symbol}${trimZeroes((abs / 100000).toFixed(2))}L`;
+  }
+  if (abs >= 1000) {
+    return `${sign}${symbol}${trimZeroes((abs / 1000).toFixed(2))}K`;
+  }
+  return `${sign}${symbol}${trimZeroes(abs.toFixed(2))}`;
+}
+
 export function formatDate(date: Date | string): string {
   return new Date(date).toLocaleDateString("en-IN", {
     day: "numeric",
@@ -36,6 +72,17 @@ export function formatDateShort(date: Date | string): string {
   return new Date(date).toLocaleDateString("en-IN", {
     day: "numeric",
     month: "short",
+  });
+}
+
+export function formatDateTime(date: Date | string): string {
+  return new Date(date).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
   });
 }
 

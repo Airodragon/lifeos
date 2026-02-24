@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDate, toDecimal } from "@/lib/utils";
+import { formatDateTime, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
@@ -58,6 +58,13 @@ const SAMPLE_CSV = `Date,Description,Debit,Credit
 2026-02-02,Salary,,85000.00
 2026-02-03,Electricity Bill,2100.50,`;
 
+function localDateTimeValue(d = new Date()) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
 export default function ExpensesPage() {
   const { fc: formatCurrency } = useFormat();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -79,7 +86,7 @@ export default function ExpensesPage() {
     description: "",
     categoryId: "",
     accountId: "",
-    date: new Date().toISOString().split("T")[0],
+    date: localDateTimeValue(),
   });
 
   const fetchData = useCallback(async () => {
@@ -110,7 +117,7 @@ export default function ExpensesPage() {
       body: JSON.stringify({
         ...formData,
         amount: parseFloat(formData.amount),
-        date: new Date(formData.date).toISOString(),
+        date: formData.date,
         categoryId: formData.categoryId || undefined,
         accountId: formData.accountId || undefined,
       }),
@@ -122,7 +129,7 @@ export default function ExpensesPage() {
       description: "",
       categoryId: "",
       accountId: "",
-      date: new Date().toISOString().split("T")[0],
+      date: localDateTimeValue(),
     });
     fetchData();
   };
@@ -188,6 +195,15 @@ export default function ExpensesPage() {
   const totalIncome = filtered
     .filter((t) => t.type === "income")
     .reduce((s, t) => s + toDecimal(t.amount), 0);
+
+  const categoryOptions = categories.filter((c) => {
+    const ct = (c.type || "").toLowerCase().trim();
+    if (formData.type === "transfer") return true;
+    if (formData.type === "expense") {
+      return ct.includes("expense") || ct.includes("debit") || !ct.includes("income");
+    }
+    return ct.includes("income") || ct.includes("credit");
+  });
 
   if (loading) {
     return (
@@ -290,7 +306,7 @@ export default function ExpensesPage() {
                           </p>
                           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground flex-wrap">
                             <Calendar className="w-3 h-3 shrink-0" />
-                            <span>{formatDate(txn.date)}</span>
+                            <span>{formatDateTime(txn.date)}</span>
                             {txn.category && (
                               <>
                                 <span>·</span>
@@ -384,14 +400,17 @@ export default function ExpensesPage() {
               className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
             >
               <option value="">Select category</option>
-              {categories
-                .filter((c) => c.type === formData.type || formData.type === "transfer")
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+              {categoryOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
             </select>
+            {categoryOptions.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No categories found for this type. Create one in Settings/Categories.
+              </p>
+            )}
           </div>
           {accounts.length > 0 && (
             <div className="space-y-1.5">
@@ -411,8 +430,8 @@ export default function ExpensesPage() {
             </div>
           )}
           <Input
-            label="Date"
-            type="date"
+            label="Date & Time"
+            type="datetime-local"
             value={formData.date}
             onChange={(e) => setFormData((p) => ({ ...p, date: e.target.value }))}
           />
