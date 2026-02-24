@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { TrendingUp, Plus, ShieldAlert, IndianRupee } from "lucide-react";
+import {
+  TrendingUp,
+  Plus,
+  ShieldAlert,
+  RefreshCw,
+  Brain,
+  ReceiptText,
+  Wallet,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -34,14 +42,63 @@ interface Liability {
   endDate: string | null;
 }
 
+interface SIP {
+  id: string;
+  amount: string;
+  currentValue: string;
+  status: string;
+}
+
+interface Committee {
+  id: string;
+  name: string;
+  payoutAmount: string;
+  status: string;
+}
+
+interface FixedDeposit {
+  id: string;
+  principal: string;
+  maturityAmount: string;
+  status: string;
+}
+
+interface Account {
+  id: string;
+  type: string;
+  balance: string;
+}
+
+interface AIInsights {
+  summary: string;
+  suggestions: string[];
+  alerts: string[];
+  opportunities: string[];
+}
+
+interface TaxSummary {
+  totals: {
+    totalEstimatedTax: number;
+    stcgTaxEstimate: number;
+    ltcgTaxEstimate: number;
+  };
+}
+
 const TRACKING_START = "2026-03-01";
 
 export default function WealthPage() {
   const { fc: formatCurrency, fp: formatPercent } = useFormat();
-  const [activeTab, setActiveTab] = useState("investments");
+  const [activeTab, setActiveTab] = useState("summary");
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
+  const [sips, setSips] = useState<SIP[]>([]);
+  const [committees, setCommittees] = useState<Committee[]>([]);
+  const [fixedDeposits, setFixedDeposits] = useState<FixedDeposit[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [ai, setAi] = useState<AIInsights | null>(null);
+  const [tax, setTax] = useState<TaxSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshingLive, setRefreshingLive] = useState(false);
   const [showAddLiability, setShowAddLiability] = useState(false);
   const [editLiabilityId, setEditLiabilityId] = useState<string | null>(null);
   const [liabilityForm, setLiabilityForm] = useState({
@@ -69,14 +126,32 @@ export default function WealthPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [invRes, liabRes] = await Promise.all([
+    const [invRes, liabRes, sipRes, committeeRes, fdRes, accountRes, aiRes, taxRes] = await Promise.all([
       fetch("/api/investments"),
       fetch("/api/liabilities"),
+      fetch("/api/sips"),
+      fetch("/api/committees"),
+      fetch("/api/fixed-deposits"),
+      fetch("/api/accounts"),
+      fetch("/api/ai/insights").catch(() => null),
+      fetch("/api/investments/tax-center").catch(() => null),
     ]);
     const invData = await invRes.json();
     const liabData = await liabRes.json();
+    const sipData = await sipRes.json();
+    const committeeData = await committeeRes.json();
+    const fdData = await fdRes.json();
+    const accountData = await accountRes.json();
+    const aiData = aiRes ? await aiRes.json() : null;
+    const taxData = taxRes ? await taxRes.json() : null;
     setInvestments(invData || []);
     setLiabilities(liabData || []);
+    setSips(sipData || []);
+    setCommittees(committeeData || []);
+    setFixedDeposits(fdData || []);
+    setAccounts(accountData || []);
+    if (aiData && !aiData.error) setAi(aiData);
+    if (taxData && !taxData.error) setTax(taxData);
     setLoading(false);
   }, []);
 
@@ -99,12 +174,95 @@ export default function WealthPage() {
     return { rows, totalValue, totalInvested, totalGain };
   }, [investments]);
 
+  const assetBreakdown = useMemo(() => {
+    const mf = investmentTotals.rows
+      .filter((row) => row.type === "mutual_fund")
+      .reduce((sum, row) => sum + row.value, 0);
+    const stocks = investmentTotals.rows
+      .filter((row) => row.type !== "mutual_fund")
+      .reduce((sum, row) => sum + row.value, 0);
+    const sip = sips
+      .filter((s) => s.status === "active" || s.status === "paused")
+      .reduce((sum, s) => sum + toDecimal(s.currentValue), 0);
+    const committee = committees
+      .filter((c) => c.status === "active")
+      .reduce((sum, c) => sum + toDecimal(c.payoutAmount), 0);
+    const fd = fixedDeposits
+      .filter((f) => f.status === "active")
+      .reduce((sum, f) => sum + toDecimal(f.maturityAmount || f.principal), 0);
+    const totalAssets = mf + stocks + sip + committee + fd;
+    return { mf, stocks, sip, committee, fd, totalAssets };
+  }, [committees, fixedDeposits, investmentTotals.rows, sips]);
+
   const liabilityTotals = useMemo(() => {
     const principal = liabilities.reduce((sum, l) => sum + toDecimal(l.principal), 0);
     const outstanding = liabilities.reduce((sum, l) => sum + toDecimal(l.outstanding), 0);
     const emi = liabilities.reduce((sum, l) => sum + toDecimal(l.emiAmount), 0);
-    return { principal, outstanding, emi };
+    const creditCardExpense = accounts
+      .filter((a) => a.type === "credit_card")
+      .reduce((sum, a) => sum + Math.abs(toDecimal(a.balance)), 0);
+    return { principal, outstanding, emi, creditCardExpense };
+  }, [accounts, liabilities]);
+
+  const currentBankBalance = useMemo(() => {
+    return accounts
+      .filter((a) => a.type !== "credit_card")
+      .reduce((sum, a) => sum + toDecimal(a.balance), 0);
   }, [liabilities]);
+
+  const projection = useMemo(() => {
+    const monthlySip = sips
+      .filter((s) => s.status === "active")
+      .reduce((sum, s) => sum + toDecimal(s.amount), 0);
+    const monthlyDebtOut = liabilityTotals.emi + liabilityTotals.creditCardExpense * 0.05;
+    const netCurrent = assetBreakdown.totalAssets - (liabilityTotals.outstanding + liabilityTotals.creditCardExpense);
+    const monthlyNetFlow = monthlySip - monthlyDebtOut;
+    const projected12 = netCurrent * 1.06 + monthlyNetFlow * 12;
+    return { monthlySip, monthlyDebtOut, netCurrent, projected12 };
+  }, [assetBreakdown.totalAssets, liabilityTotals.creditCardExpense, liabilityTotals.emi, liabilityTotals.outstanding, sips]);
+
+  const refreshLiveValues = async () => {
+    setRefreshingLive(true);
+    try {
+      const symbols = investments.map((i) => i.symbol).filter(Boolean);
+      let investmentUpdated = 0;
+      if (symbols.length) {
+        const quoteRes = await fetch("/api/market-data/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbols }),
+        });
+        if (quoteRes.ok) {
+          const quotes: Record<string, number> = await quoteRes.json();
+          const updates = investments
+            .filter((inv) => quotes[inv.symbol])
+            .map((inv) =>
+              fetch(`/api/investments/${inv.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  currentPrice: quotes[inv.symbol],
+                  lastUpdated: new Date().toISOString(),
+                }),
+              })
+            );
+          investmentUpdated = updates.length;
+          await Promise.all(updates);
+        }
+      }
+
+      const sipRes = await fetch("/api/sips/refresh", { method: "POST" });
+      const sipData = await sipRes.json().catch(() => ({}));
+      await fetchData();
+      toast.success(
+        `Live refresh complete · MF/Stocks ${investmentUpdated} · SIP ${sipData.priceUpdated ?? 0}`
+      );
+    } catch {
+      toast.error("Live refresh failed");
+    } finally {
+      setRefreshingLive(false);
+    }
+  };
 
   const addLiability = async () => {
     if (!liabilityForm.name || !liabilityForm.principal || !liabilityForm.interestRate) return;
@@ -196,16 +354,22 @@ export default function WealthPage() {
             March-first tracking flow active. Add older assets/debts manually anytime.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData}>
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={fetchData}>
+            Refresh
+          </Button>
+          <Button size="sm" onClick={refreshLiveValues} disabled={refreshingLive}>
+            <RefreshCw className={`w-4 h-4 mr-1 ${refreshingLive ? "animate-spin" : ""}`} />
+            Live
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <Card>
           <CardContent className="p-3">
             <p className="text-[10px] text-muted-foreground">Investment Value</p>
-            <p className="text-sm font-semibold">{formatCurrency(investmentTotals.totalValue, "INR", true)}</p>
+            <p className="text-sm font-semibold">{formatCurrency(assetBreakdown.totalAssets, "INR", true)}</p>
             <p className={`text-[10px] ${investmentTotals.totalGain >= 0 ? "text-success" : "text-destructive"}`}>
               {formatCurrency(investmentTotals.totalGain, "INR", true)}
             </p>
@@ -215,7 +379,7 @@ export default function WealthPage() {
           <CardContent className="p-3">
             <p className="text-[10px] text-muted-foreground">Outstanding Liability</p>
             <p className="text-sm font-semibold text-destructive">
-              {formatCurrency(liabilityTotals.outstanding, "INR", true)}
+              {formatCurrency(liabilityTotals.outstanding + liabilityTotals.creditCardExpense, "INR", true)}
             </p>
             <p className="text-[10px] text-muted-foreground">
               EMI {formatCurrency(liabilityTotals.emi, "INR", true)}/mo
@@ -224,19 +388,56 @@ export default function WealthPage() {
         </Card>
       </div>
 
+      <Card>
+        <CardContent className="p-3 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] text-muted-foreground">Current Bank Balance</p>
+            <p className="text-base font-semibold">{formatCurrency(currentBankBalance, "INR", true)}</p>
+          </div>
+          <Wallet className="w-5 h-5 text-primary" />
+        </CardContent>
+      </Card>
+
       <Tabs
         tabs={[
-          { id: "investments", label: "Investments" },
+          { id: "summary", label: "Summary" },
+          { id: "investments", label: "Assets" },
           { id: "liabilities", label: "Liabilities" },
+          { id: "insights", label: "Insights" },
         ]}
         activeTab={activeTab}
         onChange={setActiveTab}
       />
 
-      {activeTab === "investments" ? (
+      {activeTab === "summary" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Normal Summary</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl border border-border/40 p-2">
+                <p className="text-muted-foreground">Net Current</p>
+                <p className={`font-semibold ${projection.netCurrent >= 0 ? "text-success" : "text-destructive"}`}>
+                  {formatCurrency(projection.netCurrent, "INR", true)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/40 p-2">
+                <p className="text-muted-foreground">12M Projection</p>
+                <p className={`font-semibold ${projection.projected12 >= 0 ? "text-success" : "text-destructive"}`}>
+                  {formatCurrency(projection.projected12, "INR", true)}
+                </p>
+              </div>
+            </div>
+            <p className="text-muted-foreground">
+              Projection uses current net wealth + 6% annual growth + monthly SIP minus EMI and minimum credit card repayment.
+            </p>
+          </CardContent>
+        </Card>
+      ) : activeTab === "investments" ? (
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="text-sm">Portfolio Holdings</CardTitle>
+            <CardTitle className="text-sm">Asset Breakdown</CardTitle>
             <Link href="/investments">
               <Button size="sm" variant="outline">
                 <TrendingUp className="w-4 h-4 mr-1" />
@@ -245,6 +446,28 @@ export default function WealthPage() {
             </Link>
           </CardHeader>
           <CardContent className="space-y-2">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-xl border border-border/40 p-2">
+                <p className="text-muted-foreground">MF</p>
+                <p className="font-semibold">{formatCurrency(assetBreakdown.mf, "INR", true)}</p>
+              </div>
+              <div className="rounded-xl border border-border/40 p-2">
+                <p className="text-muted-foreground">Stocks</p>
+                <p className="font-semibold">{formatCurrency(assetBreakdown.stocks, "INR", true)}</p>
+              </div>
+              <div className="rounded-xl border border-border/40 p-2">
+                <p className="text-muted-foreground">SIP</p>
+                <p className="font-semibold">{formatCurrency(assetBreakdown.sip, "INR", true)}</p>
+              </div>
+              <div className="rounded-xl border border-border/40 p-2">
+                <p className="text-muted-foreground">Committee</p>
+                <p className="font-semibold">{formatCurrency(assetBreakdown.committee, "INR", true)}</p>
+              </div>
+              <div className="rounded-xl border border-border/40 p-2">
+                <p className="text-muted-foreground">FD</p>
+                <p className="font-semibold">{formatCurrency(assetBreakdown.fd, "INR", true)}</p>
+              </div>
+            </div>
             {loading ? (
               <p className="text-xs text-muted-foreground">Loading...</p>
             ) : investmentTotals.rows.length === 0 ? (
@@ -269,7 +492,7 @@ export default function WealthPage() {
             )}
           </CardContent>
         </Card>
-      ) : (
+      ) : activeTab === "liabilities" ? (
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-sm">Liability List</CardTitle>
@@ -306,7 +529,7 @@ export default function WealthPage() {
                   <p className="text-muted-foreground">
                     {row.type} · {new Date(row.startDate).toLocaleDateString("en-IN")}
                   </p>
-                  <div className="grid grid-cols-3 gap-2 mt-1">
+                  <div className="grid grid-cols-2 gap-2 mt-1">
                     <div>
                       <p className="text-muted-foreground">Outstanding</p>
                       <p className="font-semibold">{formatCurrency(toDecimal(row.outstanding), "INR", true)}</p>
@@ -317,23 +540,82 @@ export default function WealthPage() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">EMI</p>
-                      <p className="font-semibold flex items-center gap-0.5">
-                        <IndianRupee className="w-3 h-3" />
-                        {formatCurrency(toDecimal(row.emiAmount), "INR", true)}
-                      </p>
+                      <p className="font-semibold">{formatCurrency(toDecimal(row.emiAmount), "INR", true)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Principal</p>
+                      <p className="font-semibold">{formatCurrency(toDecimal(row.principal), "INR", true)}</p>
                     </div>
                   </div>
                 </div>
               ))
             )}
+            <div className="rounded-xl border border-border/40 p-2 text-xs">
+              <p className="text-muted-foreground">Credit Card Expense / Due</p>
+              <p className="font-semibold text-destructive">
+                {formatCurrency(liabilityTotals.creditCardExpense, "INR", true)}
+              </p>
+            </div>
           </CardContent>
         </Card>
+      ) : (
+        <div className="space-y-3">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-1.5">
+                <Brain className="w-4 h-4" />
+                AI Recommendation
+              </CardTitle>
+              <Link href="/analytics">
+                <Button size="sm" variant="outline">Open Analytics</Button>
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-2 text-xs">
+              {ai ? (
+                <>
+                  <p>{ai.summary}</p>
+                  {(ai.suggestions || []).slice(0, 3).map((item) => (
+                    <p key={item} className="text-muted-foreground">- {item}</p>
+                  ))}
+                </>
+              ) : (
+                <p className="text-muted-foreground">AI recommendation unavailable right now.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-1.5">
+                <ReceiptText className="w-4 h-4" />
+                Tax
+              </CardTitle>
+              <Link href="/tax-center">
+                <Button size="sm" variant="outline">Open Tax Center</Button>
+              </Link>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-xl border border-border/40 p-2">
+                <p className="text-muted-foreground">STCG Est.</p>
+                <p className="font-semibold">{formatCurrency(tax?.totals?.stcgTaxEstimate || 0, "INR", true)}</p>
+              </div>
+              <div className="rounded-xl border border-border/40 p-2">
+                <p className="text-muted-foreground">LTCG Est.</p>
+                <p className="font-semibold">{formatCurrency(tax?.totals?.ltcgTaxEstimate || 0, "INR", true)}</p>
+              </div>
+              <div className="rounded-xl border border-border/40 p-2 col-span-2">
+                <p className="text-muted-foreground">Total Tax Estimate</p>
+                <p className="font-semibold">{formatCurrency(tax?.totals?.totalEstimatedTax || 0, "INR", true)}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       <Card>
         <CardContent className="p-3 text-xs text-muted-foreground flex items-start gap-2">
           <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
-          Add historical purchases and liabilities manually whenever ready. Day-to-day tracking will continue cleanly from March.
+          Other important things remain available in dedicated pages: Rebalance, Goal Investing, Notifications, Budgets, and full Investments.
         </CardContent>
       </Card>
 
