@@ -37,6 +37,17 @@ interface Account {
   color: string | null;
 }
 
+function getCreditCardUsed(account: Account): number {
+  const balance = toDecimal(account.balance);
+  const limit = toDecimal(account.creditLimit);
+  if (limit > 0 && balance >= 0) {
+    // Backward-compatible mode: balance stored as available credit (limit - used).
+    return Math.max(0, limit - balance);
+  }
+  // Due-based mode: balance stored negative when used.
+  return Math.max(0, -balance);
+}
+
 const ACCOUNT_TYPES = [
   { id: "bank", label: "Bank Account", icon: Landmark },
   { id: "cash", label: "Cash", icon: Banknote },
@@ -142,7 +153,7 @@ export default function AccountsPage() {
 
   const handlePayCreditCard = async () => {
     if (!payCard || !payForm.fromAccountId || !payForm.amount) return;
-    const outstandingDue = Math.max(0, -toDecimal(payCard.balance));
+    const outstandingDue = getCreditCardUsed(payCard);
     const paymentAmount = parseFloat(payForm.amount);
     if (paymentAmount > outstandingDue) {
       toast.error(`Amount cannot exceed due (${formatCurrency(outstandingDue)})`);
@@ -281,7 +292,7 @@ export default function AccountsPage() {
             {accounts.map((account) => {
               const Icon = TYPE_ICONS[account.type] || Building2;
               const balance = toDecimal(account.balance);
-              const cardDue = account.type === "credit_card" && balance < 0 ? Math.abs(balance) : 0;
+              const cardDue = account.type === "credit_card" ? getCreditCardUsed(account) : 0;
               const cardLimit = account.type === "credit_card" ? toDecimal(account.creditLimit) : 0;
               const cardAvailable = cardLimit > 0 ? Math.max(0, cardLimit - cardDue) : 0;
               const cardUtil = cardLimit > 0 ? (cardDue / cardLimit) * 100 : 0;
@@ -315,7 +326,7 @@ export default function AccountsPage() {
                         <div className="text-right shrink-0">
                           <p
                             className={`text-base font-bold ${
-                              account.type === "credit_card" && balance < 0
+                              account.type === "credit_card" && cardDue > 0
                                 ? "text-destructive"
                                 : balance >= 0
                                   ? "text-foreground"
@@ -355,7 +366,7 @@ export default function AccountsPage() {
                           <>
                             <button
                               onClick={() => {
-                                const due = Math.max(0, -toDecimal(account.balance));
+                                const due = getCreditCardUsed(account);
                                 if (due <= 0) {
                                   toast.error("No due pending on this credit card");
                                   return;
@@ -427,22 +438,28 @@ export default function AccountsPage() {
             </div>
           </div>
           <Input
-            label="Current Balance"
+            label={form.type === "credit_card" ? "Available Credit" : "Current Balance"}
             type="number"
-            placeholder="0.00"
+            placeholder={form.type === "credit_card" ? "e.g., 40000" : "0.00"}
             value={form.balance}
             onChange={(e) => setForm((p) => ({ ...p, balance: e.target.value }))}
             inputMode="decimal"
           />
           {form.type === "credit_card" && (
-            <Input
-              label="Credit Limit"
-              type="number"
-              placeholder="50000"
-              value={form.creditLimit}
-              onChange={(e) => setForm((p) => ({ ...p, creditLimit: e.target.value }))}
-              inputMode="decimal"
-            />
+            <>
+              <Input
+                label="Credit Limit"
+                type="number"
+                placeholder="50000"
+                value={form.creditLimit}
+                onChange={(e) => setForm((p) => ({ ...p, creditLimit: e.target.value }))}
+                inputMode="decimal"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter available credit as current balance (limit - already used). Example: limit 50,000
+                and used 10,000 means available 40,000.
+              </p>
+            </>
           )}
           <Button onClick={handleAdd} className="w-full" disabled={!form.name}>
             Add Account
@@ -483,7 +500,7 @@ export default function AccountsPage() {
             </div>
           </div>
           <Input
-            label="Current Balance"
+            label={form.type === "credit_card" ? "Available Credit" : "Current Balance"}
             type="number"
             value={form.balance}
             onChange={(e) => setForm((p) => ({ ...p, balance: e.target.value }))}
@@ -539,10 +556,10 @@ export default function AccountsPage() {
             value={payForm.amount}
             onChange={(e) => setPayForm((p) => ({ ...p, amount: e.target.value }))}
             inputMode="decimal"
-            max={payCard ? Math.max(0, -toDecimal(payCard.balance)) : undefined}
+            max={payCard ? getCreditCardUsed(payCard) : undefined}
           />
           <p className="text-xs text-muted-foreground">
-            Max payable: {formatCurrency(payCard ? Math.max(0, -toDecimal(payCard.balance)) : 0)}
+            Max payable: {formatCurrency(payCard ? getCreditCardUsed(payCard) : 0)}
           </p>
           <Input
             label="Payment date"
@@ -562,7 +579,7 @@ export default function AccountsPage() {
               !payForm.fromAccountId ||
               !payForm.amount ||
               parseFloat(payForm.amount || "0") >
-                Math.max(0, -(payCard ? toDecimal(payCard.balance) : 0))
+                (payCard ? getCreditCardUsed(payCard) : 0)
             }
           >
             Pay Credit Card

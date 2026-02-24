@@ -14,6 +14,19 @@ interface Account {
   type: string;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  type: string;
+}
+
+function localDateTimeValue(d = new Date()) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
 interface QuickAddSheetProps {
   open: boolean;
   onClose: () => void;
@@ -26,8 +39,12 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [date, setDate] = useState(localDateTimeValue());
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
+  const quickCategories = ["Food", "Fuel", "Bills", "Transfer", "Groceries", "Health"];
 
   useEffect(() => {
     if (open) {
@@ -36,9 +53,27 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
       } else if (contextPath.startsWith("/dashboard")) {
         setType("expense");
       }
-      fetch("/api/accounts")
-        .then((r) => r.json())
-        .then((data) => setAccounts(data || []))
+      Promise.all([fetch("/api/accounts"), fetch("/api/categories")])
+        .then(async ([aRes, cRes]) => {
+          const [aData, cData] = await Promise.all([aRes.json(), cRes.json()]);
+          setAccounts(aData || []);
+          setCategories(cData || []);
+          try {
+            const saved = localStorage.getItem("lifeos-expense-form-defaults");
+            if (saved) {
+              const parsed = JSON.parse(saved) as {
+                type?: "expense" | "income" | "transfer";
+                accountId?: string;
+                categoryId?: string;
+              };
+              if (parsed.type) setType(parsed.type);
+              if (parsed.accountId) setAccountId(parsed.accountId);
+              if (parsed.categoryId) setCategoryId(parsed.categoryId);
+            }
+          } catch {
+            // ignore malformed local storage
+          }
+        })
         .catch(() => {});
     }
   }, [open, contextPath]);
@@ -48,6 +83,15 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
     { id: "income" as const, label: "Income", icon: ArrowUp, color: "text-success" },
     { id: "transfer" as const, label: "Transfer", icon: ArrowLeftRight, color: "text-muted-foreground" },
   ];
+
+  const categoryOptions = categories.filter((c) => {
+    const ct = (c.type || "").toLowerCase().trim();
+    if (type === "transfer") return true;
+    if (type === "expense") {
+      return ct.includes("expense") || ct.includes("debit") || !ct.includes("income");
+    }
+    return ct.includes("income") || ct.includes("credit");
+  });
 
   const handleSubmit = async () => {
     if (!amount || parseFloat(amount) <= 0) return;
@@ -60,8 +104,9 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
           amount: parseFloat(amount),
           type,
           description: description || undefined,
+          categoryId: categoryId || undefined,
           accountId: accountId || undefined,
-          date: new Date().toISOString(),
+          date,
         }),
       });
       if (!res.ok) throw new Error("Failed to add transaction");
@@ -69,6 +114,12 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
       setAmount("");
       setDescription("");
       setAccountId("");
+      setCategoryId("");
+      setDate(localDateTimeValue());
+      localStorage.setItem(
+        "lifeos-expense-form-defaults",
+        JSON.stringify({ type, accountId, categoryId })
+      );
       onClose();
       router.refresh();
     } catch {
@@ -134,6 +185,31 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
                   </div>
                 </div>
               )}
+              <div className="flex gap-1.5 flex-wrap">
+                {quickCategories.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className="px-2.5 py-1 rounded-full text-xs bg-muted text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      const match = categories.find((c) => c.name.toLowerCase() === name.toLowerCase());
+                      if (name.toLowerCase() === "transfer") {
+                        setType("transfer");
+                        setCategoryId(match?.id || "");
+                        return;
+                      }
+                      if (match) {
+                        setType(match.type.toLowerCase().includes("income") ? "income" : "expense");
+                        setCategoryId(match.id);
+                        return;
+                      }
+                      setDescription((prev) => prev || name);
+                    }}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
               <div className="flex gap-2">
                 {types.map((t) => {
                   const Icon = t.icon;
@@ -170,6 +246,22 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
                 onChange={(e) => setDescription(e.target.value)}
               />
 
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Category</label>
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
+                >
+                  <option value="">Select category</option>
+                  {categoryOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {accounts.length > 0 && (
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Account</label>
@@ -187,6 +279,13 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
                   </select>
                 </div>
               )}
+
+              <Input
+                label="Date & Time"
+                type="datetime-local"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
 
               <Button
                 onClick={handleSubmit}

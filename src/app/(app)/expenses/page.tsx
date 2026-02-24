@@ -552,13 +552,15 @@ export default function ExpensesPage() {
         />
       </div>
 
-      <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}>
-        <Upload className="w-4 h-4 mr-1" />
-        Import Statement CSV
-      </Button>
-      <Button variant="outline" size="sm" onClick={exportTransactionsCsv}>
-        Export CSV
-      </Button>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}>
+          <Upload className="w-4 h-4 mr-1" />
+          Import Statement CSV
+        </Button>
+        <Button variant="outline" size="sm" onClick={exportTransactionsCsv}>
+          Export CSV
+        </Button>
+      </div>
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -667,16 +669,6 @@ export default function ExpensesPage() {
           Load more transactions
         </Button>
       )}
-
-      <div className="fixed bottom-20 right-4 z-30">
-        <Button
-          onClick={() => setShowAddModal(true)}
-          size="lg"
-          className="rounded-full shadow-lg"
-        >
-          + Add
-        </Button>
-      </div>
 
       <Modal
         open={showAddModal}

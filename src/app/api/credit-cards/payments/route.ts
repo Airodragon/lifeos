@@ -11,6 +11,14 @@ const createSchema = z.object({
   note: z.string().optional(),
 });
 
+function getOutstandingDue(balance: number, creditLimit: number | null): number {
+  const limit = creditLimit ?? 0;
+  if (limit > 0 && balance >= 0) {
+    return Math.max(0, limit - balance);
+  }
+  return Math.max(0, -balance);
+}
+
 export async function GET(req: Request) {
   try {
     const user = await requireUser();
@@ -70,7 +78,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Credit card not found" }, { status: 400 });
     }
 
-    const outstandingDue = Math.max(0, -Number(cardAccount.balance));
+    const outstandingDue = getOutstandingDue(
+      Number(cardAccount.balance),
+      cardAccount.creditLimit ? Number(cardAccount.creditLimit) : null
+    );
     if (outstandingDue <= 0) {
       return NextResponse.json(
         { error: "This credit card has no outstanding due" },

@@ -51,15 +51,15 @@ export function BottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/50 bg-card/80 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-        <div className="flex items-center justify-around h-14 max-w-2xl mx-auto px-2">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/50 bg-card/90 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
+        <div className="flex items-end justify-around h-16 max-w-2xl mx-auto px-2">
           {navItems.map((item) => {
             if (item.isAdd) {
               return (
                 <button
                   key="add"
                   onClick={() => setShowQuickAdd(true)}
-                  className="flex items-center justify-center -mt-5"
+                  className="flex items-center justify-center -mt-6"
                 >
                   <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg active:scale-95 transition-transform">
                     <Plus className="w-6 h-6" />
@@ -79,7 +79,7 @@ export function BottomNav() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 px-3 py-1 relative min-w-[48px]",
+                  "flex flex-col items-center gap-0.5 px-3 py-1.5 relative min-w-[52px]",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
