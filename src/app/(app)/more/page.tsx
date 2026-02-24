@@ -35,7 +35,7 @@ const sections = [
     ],
   },
   {
-    title: "Planning",
+    title: "Planning", 
     items: [
       { href: "/budgets", icon: PiggyBank, label: "Budgets", desc: "Monthly limits", color: "bg-pink-500/10 text-pink-500" },
       { href: "/goals", icon: Target, label: "Goals", desc: "Financial targets", color: "bg-cyan-500/10 text-cyan-500" },
