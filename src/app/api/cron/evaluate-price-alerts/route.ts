@@ -41,9 +41,10 @@ export async function GET(req: Request) {
 
       const now = new Date();
       const cooldownMs = Math.max(1, alert.cooldownMinutes) * 60 * 1000;
+      const lastNotifiedAtMs = alert.lastNotifiedAt?.getTime() ?? null;
       const inCooldown =
-        Boolean(alert.lastNotifiedAt) &&
-        now.getTime() - new Date(alert.lastNotifiedAt).getTime() < cooldownMs;
+        lastNotifiedAtMs !== null &&
+        now.getTime() - lastNotifiedAtMs < cooldownMs;
 
       if (!matched || inCooldown) {
         await prisma.priceAlert.update({
