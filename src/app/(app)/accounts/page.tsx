@@ -31,6 +31,7 @@ interface Account {
   name: string;
   type: string;
   balance: string;
+  creditLimit: string | null;
   currency: string;
   icon: string | null;
   color: string | null;
@@ -69,11 +70,19 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | null>(null);
+  const [payCard, setPayCard] = useState<Account | null>(null);
   const [form, setForm] = useState({
     name: "",
     type: "bank",
     balance: "",
+    creditLimit: "",
     color: "#3b82f6",
+  });
+  const [payForm, setPayForm] = useState({
+    fromAccountId: "",
+    amount: "",
+    date: new Date().toISOString().slice(0, 10),
+    note: "",
   });
 
   const fetchAccounts = useCallback(async () => {
@@ -96,11 +105,15 @@ export default function AccountsPage() {
         name: form.name,
         type: form.type,
         balance: parseFloat(form.balance || "0"),
+        creditLimit:
+          form.type === "credit_card" && form.creditLimit
+            ? parseFloat(form.creditLimit)
+            : undefined,
         color: form.color,
       }),
     });
     setShowAdd(false);
-    setForm({ name: "", type: "bank", balance: "", color: "#3b82f6" });
+    setForm({ name: "", type: "bank", balance: "", creditLimit: "", color: "#3b82f6" });
     fetchAccounts();
     toast.success("Account added");
   };
@@ -114,13 +127,56 @@ export default function AccountsPage() {
         name: form.name,
         type: form.type,
         balance: parseFloat(form.balance || "0"),
+        creditLimit:
+          form.type === "credit_card" && form.creditLimit
+            ? parseFloat(form.creditLimit)
+            : null,
         color: form.color,
       }),
     });
     setEditAccount(null);
-    setForm({ name: "", type: "bank", balance: "", color: "#3b82f6" });
+    setForm({ name: "", type: "bank", balance: "", creditLimit: "", color: "#3b82f6" });
     fetchAccounts();
     toast.success("Account updated");
+  };
+
+  const handlePayCreditCard = async () => {
+    if (!payCard || !payForm.fromAccountId || !payForm.amount) return;
+    const outstandingDue = Math.max(0, -toDecimal(payCard.balance));
+    const paymentAmount = parseFloat(payForm.amount);
+    if (paymentAmount > outstandingDue) {
+      toast.error(`Amount cannot exceed due (${formatCurrency(outstandingDue)})`);
+      return;
+    }
+    if (outstandingDue <= 0) {
+      toast.error("This card has no outstanding due");
+      return;
+    }
+    const res = await fetch("/api/credit-cards/payments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        creditCardAccountId: payCard.id,
+        fromAccountId: payForm.fromAccountId,
+        amount: paymentAmount,
+        date: payForm.date,
+        note: payForm.note || undefined,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(data?.error || "Payment failed");
+      return;
+    }
+    toast.success("Credit card payment recorded");
+    setPayCard(null);
+    setPayForm({
+      fromAccountId: "",
+      amount: "",
+      date: new Date().toISOString().slice(0, 10),
+      note: "",
+    });
+    fetchAccounts();
   };
 
   const handleDelete = async (id: string) => {
@@ -135,6 +191,7 @@ export default function AccountsPage() {
       name: account.name,
       type: account.type,
       balance: toDecimal(account.balance).toString(),
+      creditLimit: account.creditLimit ? toDecimal(account.creditLimit).toString() : "",
       color: account.color || TYPE_COLORS[account.type] || "#3b82f6",
     });
   };
@@ -150,17 +207,17 @@ export default function AccountsPage() {
     );
   }
 
-  const totalBalance = accounts.reduce((s, a) => {
-    const bal = toDecimal(a.balance);
-    return a.type === "credit_card" ? s - Math.abs(bal) : s + bal;
-  }, 0);
+  const totalBalance = accounts.reduce((s, a) => s + toDecimal(a.balance), 0);
 
   const positiveBalance = accounts
     .filter((a) => a.type !== "credit_card")
     .reduce((s, a) => s + toDecimal(a.balance), 0);
   const creditBalance = accounts
     .filter((a) => a.type === "credit_card")
-    .reduce((s, a) => s + Math.abs(toDecimal(a.balance)), 0);
+    .reduce((s, a) => {
+      const bal = toDecimal(a.balance);
+      return s + (bal < 0 ? Math.abs(bal) : 0);
+    }, 0);
 
   return (
     <div className="p-4 space-y-4 pb-6">
@@ -224,6 +281,10 @@ export default function AccountsPage() {
             {accounts.map((account) => {
               const Icon = TYPE_ICONS[account.type] || Building2;
               const balance = toDecimal(account.balance);
+              const cardDue = account.type === "credit_card" && balance < 0 ? Math.abs(balance) : 0;
+              const cardLimit = account.type === "credit_card" ? toDecimal(account.creditLimit) : 0;
+              const cardAvailable = cardLimit > 0 ? Math.max(0, cardLimit - cardDue) : 0;
+              const cardUtil = cardLimit > 0 ? (cardDue / cardLimit) * 100 : 0;
               const color = account.color || TYPE_COLORS[account.type] || "#6b7280";
 
               return (
@@ -254,18 +315,61 @@ export default function AccountsPage() {
                         <div className="text-right shrink-0">
                           <p
                             className={`text-base font-bold ${
-                              account.type === "credit_card" && balance > 0
+                              account.type === "credit_card" && balance < 0
                                 ? "text-destructive"
                                 : balance >= 0
                                   ? "text-foreground"
                                   : "text-destructive"
                             }`}
                           >
-                            {formatCurrency(balance)}
+                            {account.type === "credit_card"
+                              ? `Due ${formatCurrency(cardDue)}`
+                              : formatCurrency(balance)}
                           </p>
                         </div>
                       </div>
+                      {account.type === "credit_card" && (
+                        <div className="px-4 pb-3 text-xs text-muted-foreground space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span>Limit</span>
+                            <span className="font-medium">
+                              {cardLimit > 0 ? formatCurrency(cardLimit) : "Not set"}
+                            </span>
+                          </div>
+                          {cardLimit > 0 && (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <span>Available</span>
+                                <span className="font-medium">{formatCurrency(cardAvailable)}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span>Utilization</span>
+                                <span className="font-medium">{cardUtil.toFixed(1)}%</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                       <div className="flex border-t border-border/30">
+                        {account.type === "credit_card" && (
+                          <>
+                            <button
+                              onClick={() => {
+                                const due = Math.max(0, -toDecimal(account.balance));
+                                if (due <= 0) {
+                                  toast.error("No due pending on this credit card");
+                                  return;
+                                }
+                                setPayCard(account);
+                                setPayForm((p) => ({ ...p, amount: due.toFixed(2) }));
+                              }}
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs text-primary/80 hover:text-primary hover:bg-primary/5 transition-colors"
+                            >
+                              Pay Card
+                            </button>
+                            <div className="w-px bg-border/30" />
+                          </>
+                        )}
                         <button
                           onClick={() => openEdit(account)}
                           className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
@@ -330,6 +434,16 @@ export default function AccountsPage() {
             onChange={(e) => setForm((p) => ({ ...p, balance: e.target.value }))}
             inputMode="decimal"
           />
+          {form.type === "credit_card" && (
+            <Input
+              label="Credit Limit"
+              type="number"
+              placeholder="50000"
+              value={form.creditLimit}
+              onChange={(e) => setForm((p) => ({ ...p, creditLimit: e.target.value }))}
+              inputMode="decimal"
+            />
+          )}
           <Button onClick={handleAdd} className="w-full" disabled={!form.name}>
             Add Account
           </Button>
@@ -375,8 +489,83 @@ export default function AccountsPage() {
             onChange={(e) => setForm((p) => ({ ...p, balance: e.target.value }))}
             inputMode="decimal"
           />
+          {form.type === "credit_card" && (
+            <Input
+              label="Credit Limit"
+              type="number"
+              value={form.creditLimit}
+              onChange={(e) => setForm((p) => ({ ...p, creditLimit: e.target.value }))}
+              inputMode="decimal"
+            />
+          )}
           <Button onClick={handleUpdate} className="w-full" disabled={!form.name}>
             Update Account
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!payCard}
+        onClose={() => setPayCard(null)}
+        title={payCard ? `Pay ${payCard.name}` : "Pay Credit Card"}
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">
+            Outstanding due:{" "}
+            <span className="font-semibold text-foreground">
+              {formatCurrency(payCard ? Math.max(0, -toDecimal(payCard.balance)) : 0)}
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Pay from account</label>
+            <select
+              value={payForm.fromAccountId}
+              onChange={(e) => setPayForm((p) => ({ ...p, fromAccountId: e.target.value }))}
+              className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
+            >
+              <option value="">Select account</option>
+              {accounts
+                .filter((a) => a.type !== "credit_card" && (!payCard || a.id !== payCard.id))
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <Input
+            label="Amount"
+            type="number"
+            value={payForm.amount}
+            onChange={(e) => setPayForm((p) => ({ ...p, amount: e.target.value }))}
+            inputMode="decimal"
+            max={payCard ? Math.max(0, -toDecimal(payCard.balance)) : undefined}
+          />
+          <p className="text-xs text-muted-foreground">
+            Max payable: {formatCurrency(payCard ? Math.max(0, -toDecimal(payCard.balance)) : 0)}
+          </p>
+          <Input
+            label="Payment date"
+            type="date"
+            value={payForm.date}
+            onChange={(e) => setPayForm((p) => ({ ...p, date: e.target.value }))}
+          />
+          <Input
+            label="Note (optional)"
+            value={payForm.note}
+            onChange={(e) => setPayForm((p) => ({ ...p, note: e.target.value }))}
+          />
+          <Button
+            className="w-full"
+            onClick={handlePayCreditCard}
+            disabled={
+              !payForm.fromAccountId ||
+              !payForm.amount ||
+              parseFloat(payForm.amount || "0") >
+                Math.max(0, -(payCard ? toDecimal(payCard.balance) : 0))
+            }
+          >
+            Pay Credit Card
           </Button>
         </div>
       </Modal>

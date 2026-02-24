@@ -37,6 +37,7 @@ model User {
   priceAlerts      PriceAlert[]
   pushSubscriptions PushSubscription[]
   recommendationSnapshots RecommendationSnapshot[]
+  creditCardPayments CreditCardPayment[]
 }
 
 model Authenticator {
@@ -73,9 +74,12 @@ model Account {
   currency String  @default("INR")
   icon     String?
   color    String?
+  creditLimit Decimal? @db.Decimal(15, 2)
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
+  creditCardPaymentsFrom CreditCardPayment[] @relation("PaymentFromAccount")
+  creditCardPaymentsTo   CreditCardPayment[] @relation("PaymentToCard")
 }
 
 model Category {
@@ -406,4 +410,23 @@ model RecommendationSnapshot {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model CreditCardPayment {
+  id                  String   @id @default(cuid())
+  userId              String
+  fromAccountId       String
+  creditCardAccountId String
+  amount              Decimal  @db.Decimal(15, 2)
+  date                DateTime
+  note                String?
+  createdAt           DateTime @default(now())
+
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromAccount       Account @relation("PaymentFromAccount", fields: [fromAccountId], references: [id], onDelete: Cascade)
+  creditCardAccount Account @relation("PaymentToCard", fields: [creditCardAccountId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([fromAccountId, date])
+  @@index([creditCardAccountId, date])
 }

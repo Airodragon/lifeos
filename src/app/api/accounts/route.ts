@@ -29,6 +29,10 @@ export async function POST(req: Request) {
         currency: body.currency || "INR",
         icon: body.icon,
         color: body.color,
+        creditLimit:
+          body.type === "credit_card" && typeof body.creditLimit === "number"
+            ? body.creditLimit
+            : null,
       },
     });
 

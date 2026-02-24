@@ -52,6 +52,10 @@ export async function PUT(
         balance: body.balance ?? existing.balance,
         icon: body.icon ?? existing.icon,
         color: body.color ?? existing.color,
+        creditLimit:
+          body.type === "credit_card" || (body.type === undefined && existing.type === "credit_card")
+            ? (typeof body.creditLimit === "number" ? body.creditLimit : existing.creditLimit)
+            : null,
       },
     });
 
