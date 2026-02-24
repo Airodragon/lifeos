@@ -15,11 +15,16 @@ function getBaseUrl() {
   return "http://localhost:3000";
 }
 
+export function getGoogleRedirectUri() {
+  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
+  return `${getBaseUrl()}/api/email-sync/callback`;
+}
+
 function getOAuthClient() {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    `${getBaseUrl()}/api/email-sync/callback`
+    getGoogleRedirectUri()
   );
 }
 

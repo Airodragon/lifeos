@@ -13,6 +13,7 @@ import {
   Pencil,
   Bell,
   ArrowUpRight,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ interface SIP {
   id: string;
   name: string;
   fundName: string;
+  symbol: string | null;
   amount: string;
   frequency: string;
   sipDate: number;
@@ -41,6 +43,8 @@ interface SIP {
   expectedReturn: string;
   status: string;
   lastDebitDate: string | null;
+  lastPrice: string | null;
+  lastUpdated: string | null;
 }
 
 export default function SIPsPage() {
@@ -48,11 +52,13 @@ export default function SIPsPage() {
   const [sips, setSips] = useState<SIP[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [refreshingLive, setRefreshingLive] = useState(false);
   const [showUpdate, setShowUpdate] = useState<SIP | null>(null);
   const [updateForm, setUpdateForm] = useState({ totalInvested: "", currentValue: "", units: "" });
   const [form, setForm] = useState({
     name: "",
     fundName: "",
+    symbol: "",
     amount: "",
     sipDate: "1",
     startDate: new Date().toISOString().split("T")[0],
@@ -80,6 +86,7 @@ export default function SIPsPage() {
       body: JSON.stringify({
         name: form.name,
         fundName: form.fundName,
+        symbol: form.symbol || undefined,
         amount: parseFloat(form.amount),
         sipDate: parseInt(form.sipDate),
         startDate: form.startDate,
@@ -89,9 +96,25 @@ export default function SIPsPage() {
       }),
     });
     setShowAdd(false);
-    setForm({ name: "", fundName: "", amount: "", sipDate: "1", startDate: new Date().toISOString().split("T")[0], expectedReturn: "12", totalInvested: "", currentValue: "" });
+    setForm({ name: "", fundName: "", symbol: "", amount: "", sipDate: "1", startDate: new Date().toISOString().split("T")[0], expectedReturn: "12", totalInvested: "", currentValue: "" });
     fetchSips();
     toast.success("SIP added");
+  };
+
+  const handleRefreshLive = async () => {
+    setRefreshingLive(true);
+    try {
+      const res = await fetch("/api/sips/refresh", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Live refresh failed");
+      } else {
+        toast.success(`Updated ${data.updated ?? 0} SIP(s) with live price`);
+        await fetchSips();
+      }
+    } finally {
+      setRefreshingLive(false);
+    }
   };
 
   const handleUpdateValues = async () => {
@@ -161,9 +184,14 @@ export default function SIPsPage() {
     <div className="p-4 space-y-4 pb-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">SIP Manager</h2>
-        <Button size="sm" onClick={() => setShowAdd(true)}>
-          <Plus className="w-4 h-4 mr-1" /> Add SIP
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="icon" onClick={handleRefreshLive} disabled={refreshingLive}>
+            <RefreshCw className={`w-4 h-4 ${refreshingLive ? "animate-spin" : ""}`} />
+          </Button>
+          <Button size="sm" onClick={() => setShowAdd(true)}>
+            <Plus className="w-4 h-4 mr-1" /> Add SIP
+          </Button>
+        </div>
       </div>
 
       {sips.length === 0 ? (
@@ -270,6 +298,9 @@ export default function SIPsPage() {
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-semibold truncate">{sip.name}</p>
                               <p className="text-[10px] text-muted-foreground truncate">{sip.fundName}</p>
+                              {sip.symbol && (
+                                <p className="text-[10px] text-primary/80 truncate">{sip.symbol}</p>
+                              )}
                             </div>
                           </div>
                           <Badge variant={sip.status === "active" ? "success" : "secondary"} className="shrink-0">
@@ -309,7 +340,11 @@ export default function SIPsPage() {
                             <IndianRupee className="w-3 h-3" />
                             {formatCurrency(toDecimal(sip.amount))}/mo on Day {sip.sipDate}
                           </span>
-                          <span>{toDecimal(sip.expectedReturn)}% expected</span>
+                          <span>
+                            {sip.lastUpdated
+                              ? `Live ${new Date(sip.lastUpdated).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
+                              : `${toDecimal(sip.expectedReturn)}% expected`}
+                          </span>
                         </div>
 
                         <div className="flex gap-2 mt-3">
@@ -354,6 +389,7 @@ export default function SIPsPage() {
         <div className="space-y-4">
           <Input label="SIP Name" placeholder="e.g., Nifty 50 SIP" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
           <Input label="Fund Name" placeholder="e.g., Nippon India Nifty 50 BeES" value={form.fundName} onChange={(e) => setForm((p) => ({ ...p, fundName: e.target.value }))} />
+          <Input label="Market Symbol (optional for live data)" placeholder="e.g., NIFTYBEES.NS" value={form.symbol} onChange={(e) => setForm((p) => ({ ...p, symbol: e.target.value.toUpperCase() }))} />
           <Input label="Monthly Amount" type="number" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} inputMode="decimal" />
           <Input label="SIP Date (day of month)" type="number" value={form.sipDate} onChange={(e) => setForm((p) => ({ ...p, sipDate: e.target.value }))} />
           <Input label="Start Date" type="date" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} />

@@ -26,6 +26,7 @@ interface EmailConnection {
 
 export default function EmailSettingsPage() {
   const [authUrl, setAuthUrl] = useState("");
+  const [redirectUri, setRedirectUri] = useState("");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [connection, setConnection] = useState<EmailConnection | null>(null);
@@ -36,6 +37,7 @@ export default function EmailSettingsPage() {
       fetch("/api/email-sync/status").then((r) => r.json()),
     ]);
     setAuthUrl(auth.authUrl || "");
+    setRedirectUri(auth.redirectUri || "");
     setConnection(status.connected ? status.connection : null);
   };
 
@@ -165,6 +167,11 @@ export default function EmailSettingsPage() {
             <p className="text-xs text-muted-foreground">
               We only read transactional emails from known banks and merchants. Your data is encrypted and private.
             </p>
+            {redirectUri && (
+              <p className="text-[10px] text-muted-foreground mt-2 break-all">
+                Google redirect URI: {redirectUri}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

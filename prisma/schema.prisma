@@ -282,6 +282,7 @@ model SIP {
   userId        String
   name          String
   fundName      String
+  symbol        String?
   amount        Decimal   @db.Decimal(15, 2)
   frequency     String    @default("monthly")
   sipDate       Int       @default(1)
@@ -290,6 +291,8 @@ model SIP {
   totalInvested Decimal   @default(0) @db.Decimal(15, 2)
   currentValue  Decimal   @default(0) @db.Decimal(15, 2)
   units         Decimal   @default(0) @db.Decimal(15, 6)
+  lastPrice     Decimal?  @db.Decimal(15, 4)
+  lastUpdated   DateTime?
   expectedReturn Decimal  @default(12) @db.Decimal(5, 2)
   status        String    @default("active")
   lastDebitDate DateTime?

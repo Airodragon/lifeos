@@ -6,6 +6,7 @@ import { z } from "zod";
 const createSchema = z.object({
   name: z.string().min(1),
   fundName: z.string().min(1),
+  symbol: z.string().optional(),
   amount: z.number().positive(),
   frequency: z.enum(["monthly", "weekly", "quarterly"]).optional(),
   sipDate: z.number().min(1).max(31).optional(),
@@ -41,6 +42,7 @@ export async function POST(req: Request) {
         userId: user.id,
         name: data.name,
         fundName: data.fundName,
+        symbol: data.symbol?.trim().toUpperCase() || null,
         amount: data.amount,
         frequency: data.frequency || "monthly",
         sipDate: data.sipDate || 1,

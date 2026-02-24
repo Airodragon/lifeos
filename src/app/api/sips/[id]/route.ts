@@ -23,9 +23,12 @@ export async function PUT(
       data: {
         ...(body.name && { name: body.name }),
         ...(body.fundName && { fundName: body.fundName }),
+        ...(body.symbol !== undefined && { symbol: body.symbol ? String(body.symbol).trim().toUpperCase() : null }),
         ...(body.amount && { amount: body.amount }),
         ...(body.totalInvested !== undefined && { totalInvested: body.totalInvested }),
         ...(body.currentValue !== undefined && { currentValue: body.currentValue }),
+        ...(body.lastPrice !== undefined && { lastPrice: body.lastPrice }),
+        ...(body.lastUpdated && { lastUpdated: new Date(body.lastUpdated) }),
         ...(body.units !== undefined && { units: body.units }),
         ...(body.status && { status: body.status }),
         ...(body.lastDebitDate && { lastDebitDate: new Date(body.lastDebitDate) }),

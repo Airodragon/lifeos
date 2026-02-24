@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Building2, Gem, Briefcase, Plus, Car, Package } from "lucide-react";
+import { Building2, Gem, Briefcase, Plus, Car, Package, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +86,12 @@ export default function OfflineAssetsPage() {
     toast.success("Asset added");
   };
 
+  const handleDelete = async (id: string) => {
+    await fetch(`/api/offline-assets/${id}`, { method: "DELETE" });
+    fetchAssets();
+    toast.success("Asset removed");
+  };
+
   if (loading) {
     return (
       <div className="p-4 space-y-3">
@@ -166,6 +172,15 @@ export default function OfflineAssetsPage() {
                         <span>{toDecimal(asset.appreciationRate)}% p.a.</span>
                       )}
                       {asset.purchaseDate && <span>{formatDate(asset.purchaseDate)}</span>}
+                    </div>
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        onClick={() => handleDelete(asset.id)}
+                        className="flex items-center gap-1.5 text-xs text-destructive/70 hover:text-destructive"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
+                      </button>
                     </div>
                   </CardContent>
                 </Card>
