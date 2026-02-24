@@ -36,13 +36,6 @@ export function Header() {
           >
             <Bell className="w-5 h-5" />
           </Link>
-          <Link
-            href="/settings"
-            className="relative w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-semibold hover:bg-primary/20 transition-colors"
-            title="Profile & settings"
-          >
-            {name.slice(0, 1).toUpperCase()}
-          </Link>
         </div>
       </div>
     </header>
