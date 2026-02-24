@@ -58,24 +58,40 @@ export async function fetchTransactionEmails(
     : Math.floor(Date.now() / 1000) - 7 * 86400;
 
   const senderPatterns = [
-    "from:alerts@hdfcbank.net",
-    "from:alerts@icicibank.com",
-    "from:noreply@axisbank.com",
-    "from:auto-confirm@amazon.in",
-    "from:noreply@upi",
-    "from:transaction@kotak",
-    "from:alerts@sbi",
+    "from:hdfcbank",
+    "from:icicibank",
+    "from:axisbank",
+    "from:kotak",
+    "from:sbi",
+    "from:yesbank",
+    "from:indusind",
+    "from:paytm",
+    "from:phonepe",
+    "from:googlepay",
+    "from:amazon",
+    "from:flipkart",
+  ];
+  const keywordPatterns = [
+    "subject:(debited OR credited OR spent OR received OR transaction OR payment)",
+    "subject:(UPI OR IMPS OR NEFT OR RTGS OR card OR wallet)",
   ];
 
-  const query = `(${senderPatterns.join(" OR ")}) after:${afterDate}`;
+  const query = `(${senderPatterns.join(" OR ")} OR ${keywordPatterns.join(" OR ")}) after:${afterDate}`;
 
-  const response = await gmail.users.messages.list({
-    userId: "me",
-    q: query,
-    maxResults: 50,
-  });
+  const messages: { id?: string | null }[] = [];
+  let pageToken: string | undefined;
+  for (let i = 0; i < 3; i++) {
+    const response = await gmail.users.messages.list({
+      userId: "me",
+      q: query,
+      maxResults: 50,
+      pageToken,
+    });
+    messages.push(...(response.data.messages || []));
+    pageToken = response.data.nextPageToken || undefined;
+    if (!pageToken) break;
+  }
 
-  const messages = response.data.messages || [];
   const transactions = [];
 
   for (const msg of messages) {
@@ -104,24 +120,46 @@ function extractBody(message: Record<string, unknown>): string | null {
   const payload = message.payload as Record<string, unknown> | undefined;
   if (!payload) return null;
 
-  const parts = payload.parts as Array<Record<string, unknown>> | undefined;
-  if (parts) {
-    for (const part of parts) {
-      if (part.mimeType === "text/plain") {
-        const body = part.body as Record<string, unknown> | undefined;
-        const data = body?.data as string | undefined;
-        if (data) {
-          return Buffer.from(data, "base64").toString("utf-8");
-        }
+  const decodeBase64Url = (data: string) => {
+    const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
+    return Buffer.from(normalized, "base64").toString("utf-8");
+  };
+
+  const stripHtml = (html: string) =>
+    html
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const readPart = (part: Record<string, unknown>): string | null => {
+    const mimeType = (part.mimeType as string | undefined) || "";
+    const body = part.body as Record<string, unknown> | undefined;
+    const data = body?.data as string | undefined;
+    if (data) {
+      const decoded = decodeBase64Url(data);
+      if (mimeType.includes("text/html")) return stripHtml(decoded);
+      return decoded;
+    }
+    const parts = part.parts as Array<Record<string, unknown>> | undefined;
+    if (parts) {
+      // Prefer text/plain first, then html fallback
+      const plain = parts.find((p) =>
+        ((p.mimeType as string | undefined) || "").includes("text/plain")
+      );
+      if (plain) {
+        const content = readPart(plain);
+        if (content) return content;
+      }
+      for (const p of parts) {
+        const content = readPart(p);
+        if (content) return content;
       }
     }
-  }
+    return null;
+  };
 
-  const body = payload.body as Record<string, unknown> | undefined;
-  const data = body?.data as string | undefined;
-  if (data) {
-    return Buffer.from(data, "base64").toString("utf-8");
-  }
-
-  return (payload.snippet as string) ?? null;
+  return readPart(payload) || (payload.snippet as string) || null;
 }

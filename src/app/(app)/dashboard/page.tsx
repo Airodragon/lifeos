@@ -60,6 +60,13 @@ interface Account {
   color: string | null;
 }
 
+interface AIInsights {
+  summary: string;
+  suggestions: string[];
+  alerts: string[];
+  opportunities: string[];
+}
+
 const ACCOUNT_ICONS: Record<string, typeof Landmark> = {
   bank: Landmark,
   savings: PiggyBank,
@@ -84,6 +91,7 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [aiInsights, setAiInsights] = useState<AIInsights | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -92,11 +100,13 @@ export default function DashboardPage() {
       fetch("/api/transactions?limit=5").then((r) => r.json()),
       fetch("/api/goals").then((r) => r.json()),
       fetch("/api/accounts").then((r) => r.json()),
-    ]).then(([nw, txn, g, acc]) => {
+      fetch("/api/ai/insights").then((r) => r.json()).catch(() => null),
+    ]).then(([nw, txn, g, acc, ai]) => {
       setNetWorthData(nw);
       setTransactions(txn.transactions || []);
       setGoals(g || []);
       setAccounts(acc || []);
+      if (ai && !ai.error) setAiInsights(ai);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -371,6 +381,44 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* AI Insights */}
+      {aiInsights && (
+        <motion.div variants={fadeUp}>
+          <Card>
+            <CardHeader>
+              <CardTitle>AI Insights</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">{aiInsights.summary}</p>
+              {aiInsights.suggestions?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-1.5">Suggestions</p>
+                  <ul className="space-y-1">
+                    {aiInsights.suggestions.slice(0, 3).map((s, i) => (
+                      <li key={i} className="text-xs text-muted-foreground">
+                        • {s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {aiInsights.alerts?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-1.5 text-destructive">Alerts</p>
+                  <ul className="space-y-1">
+                    {aiInsights.alerts.slice(0, 2).map((a, i) => (
+                      <li key={i} className="text-xs text-destructive/80">
+                        • {a}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

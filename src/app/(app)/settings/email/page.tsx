@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Mail, ExternalLink, Loader2, CheckCircle2, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Mail,
+  ExternalLink,
+  Loader2,
+  CheckCircle2,
+  Trash2,
+  RefreshCcw,
+} from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,17 +27,24 @@ interface EmailConnection {
 export default function EmailSettingsPage() {
   const [authUrl, setAuthUrl] = useState("");
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [connection, setConnection] = useState<EmailConnection | null>(null);
 
-  useEffect(() => {
-    Promise.all([
+  const refreshStatus = async () => {
+    const [auth, status] = await Promise.all([
       fetch("/api/email-sync").then((r) => r.json()),
       fetch("/api/email-sync/status").then((r) => r.json()),
-    ]).then(([auth, status]) => {
-      setAuthUrl(auth.authUrl || "");
-      if (status.connected) setConnection(status.connection);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    ]);
+    setAuthUrl(auth.authUrl || "");
+    setConnection(status.connected ? status.connection : null);
+  };
+
+  useEffect(() => {
+    refreshStatus()
+      .then(() => {
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("success") === "true") {
@@ -45,6 +60,24 @@ export default function EmailSettingsPage() {
     await fetch("/api/email-sync/status", { method: "DELETE" });
     setConnection(null);
     toast.success("Gmail disconnected");
+  };
+
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/email-sync/sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Sync failed");
+        return;
+      }
+      toast.success(`Synced ${data.synced ?? 0} new transaction(s)`);
+      await refreshStatus();
+    } catch {
+      toast.error("Sync failed");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   return (
@@ -77,6 +110,19 @@ export default function EmailSettingsPage() {
                   )}
                 </div>
               </div>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleSyncNow}
+                disabled={syncing}
+              >
+                {syncing ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCcw className="w-4 h-4 mr-2" />
+                )}
+                Sync Now
+              </Button>
               <Button
                 variant="outline"
                 className="w-full text-destructive border-destructive/30"

@@ -96,6 +96,11 @@ export default function InvestmentsPage() {
     fetchInvestments().then((data) => {
       if (data?.length) autoRefreshPrices(data);
     });
+    const timer = setInterval(async () => {
+      const data = await fetchInvestments();
+      if (data?.length) await autoRefreshPrices(data);
+    }, 5 * 60 * 1000);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

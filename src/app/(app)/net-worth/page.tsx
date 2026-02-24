@@ -20,10 +20,14 @@ interface NetWorthData {
   totalLiabilities: number;
   breakdown: {
     bankAccounts: number;
+    sipCurrent: number;
     investments: number;
     investmentCost: number;
     investmentGain: number;
+    fixedDepositsCurrent: number;
     offlineAssets: number;
+    creditCardDue: number;
+    loanLiabilities: number;
   };
   liabilities: {
     id: string;
@@ -94,7 +98,9 @@ export default function NetWorthPage() {
 
   const assetData = [
     { name: "Bank Accounts", value: data.breakdown.bankAccounts, color: "#3b82f6" },
+    { name: "SIPs (Current)", value: data.breakdown.sipCurrent, color: "#10b981" },
     { name: "Investments", value: data.breakdown.investments, color: "#22c55e" },
+    { name: "Fixed Deposits", value: data.breakdown.fixedDepositsCurrent, color: "#14b8a6" },
     { name: "Offline Assets", value: data.breakdown.offlineAssets, color: "#f97316" },
   ].filter((d) => d.value > 0);
 
