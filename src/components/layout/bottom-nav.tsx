@@ -29,9 +29,11 @@ const morePages = [
   "/offline-assets",
   "/committees",
   "/goals",
+  "/emi-tracker",
   "/budgets",
   "/net-worth",
   "/analytics",
+  "/recommendations",
   "/goal-investing",
   "/rebalance",
   "/tax-center",
@@ -96,7 +98,11 @@ export function BottomNav() {
         </div>
       </nav>
 
-      <QuickAddSheet open={showQuickAdd} onClose={() => setShowQuickAdd(false)} />
+      <QuickAddSheet
+        open={showQuickAdd}
+        onClose={() => setShowQuickAdd(false)}
+        contextPath={pathname}
+      />
     </>
   );
 }

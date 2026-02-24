@@ -10,7 +10,7 @@ export async function GET(
     const user = await requireUser();
     const { id } = await params;
     const investment = await prisma.investment.findFirst({
-      where: { id, userId: user.id },
+      where: { id, userId: user.id, deletedAt: null },
       include: {
         transactions: {
           orderBy: { date: "desc" },
@@ -37,7 +37,7 @@ export async function PUT(
     const body = await req.json();
 
     const existing = await prisma.investment.findFirst({
-      where: { id, userId: user.id },
+      where: { id, userId: user.id, deletedAt: null },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -63,13 +63,16 @@ export async function DELETE(
     const { id } = await params;
 
     const existing = await prisma.investment.findFirst({
-      where: { id, userId: user.id },
+      where: { id, userId: user.id, deletedAt: null },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    await prisma.investment.delete({ where: { id } });
+    await prisma.investment.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });

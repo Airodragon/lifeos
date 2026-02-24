@@ -10,6 +10,7 @@ export async function GET(req: Request) {
 
   try {
     const investments = await prisma.investment.findMany({
+      where: { deletedAt: null },
       select: { id: true, symbol: true },
     });
 

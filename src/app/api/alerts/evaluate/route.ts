@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { createNotificationAndPush } from "@/lib/notifications";
 
 type AlertConfig = {
   concentrationThreshold: number;
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
     const { start, end } = todayWindow();
 
     const [investments, budgets, monthExpenses, existingToday] = await Promise.all([
-      prisma.investment.findMany({ where: { userId: user.id } }),
+      prisma.investment.findMany({ where: { userId: user.id, deletedAt: null } }),
       prisma.budget.findMany({
         where: { userId: user.id, month: now.getMonth() + 1, year: now.getFullYear() },
         include: { category: true },
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
         where: {
           userId: user.id,
           type: "expense",
+          deletedAt: null,
           date: { gte: monthStart },
         },
       }),
@@ -119,15 +121,14 @@ export async function POST(req: Request) {
       }
     }
 
-    if (createQueue.length > 0) {
-      await prisma.notification.createMany({
-        data: createQueue.map((item) => ({
-          userId: user.id,
-          title: item.title,
-          message: item.message,
-          type: item.type,
-          data: item.data,
-        })),
+    for (const item of createQueue) {
+      await createNotificationAndPush({
+        userId: user.id,
+        title: item.title,
+        message: item.message,
+        type: item.type,
+        data: item.data ? JSON.parse(item.data) : undefined,
+        url: "/notifications",
       });
     }
 

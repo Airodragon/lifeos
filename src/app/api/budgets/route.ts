@@ -22,6 +22,7 @@ export async function GET(req: Request) {
       where: {
         userId: user.id,
         type: "expense",
+        deletedAt: null,
         date: { gte: startDate, lte: endDate },
       },
       _sum: { amount: true },

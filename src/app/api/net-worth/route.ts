@@ -31,7 +31,7 @@ export async function GET() {
     const [accounts, investments, offlineAssets, liabilities, sips, fixedDeposits] =
       await Promise.all([
         prisma.account.findMany({ where: { userId: user.id } }),
-        prisma.investment.findMany({ where: { userId: user.id } }),
+        prisma.investment.findMany({ where: { userId: user.id, deletedAt: null } }),
         prisma.offlineAsset.findMany({ where: { userId: user.id } }),
         prisma.liability.findMany({ where: { userId: user.id } }),
         prisma.sIP.findMany({ where: { userId: user.id } }),

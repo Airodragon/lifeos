@@ -17,9 +17,10 @@ interface Account {
 interface QuickAddSheetProps {
   open: boolean;
   onClose: () => void;
+  contextPath?: string;
 }
 
-export function QuickAddSheet({ open, onClose }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheetProps) {
   const router = useRouter();
   const [type, setType] = useState<"expense" | "income" | "transfer">("expense");
   const [amount, setAmount] = useState("");
@@ -30,12 +31,17 @@ export function QuickAddSheet({ open, onClose }: QuickAddSheetProps) {
 
   useEffect(() => {
     if (open) {
+      if (contextPath.startsWith("/expenses")) {
+        setType("expense");
+      } else if (contextPath.startsWith("/dashboard")) {
+        setType("expense");
+      }
       fetch("/api/accounts")
         .then((r) => r.json())
         .then((data) => setAccounts(data || []))
         .catch(() => {});
     }
-  }, [open]);
+  }, [open, contextPath]);
 
   const types = [
     { id: "expense" as const, label: "Expense", icon: ArrowDown, color: "text-destructive" },
@@ -101,6 +107,33 @@ export function QuickAddSheet({ open, onClose }: QuickAddSheetProps) {
             </div>
 
             <div className="px-4 space-y-4 pb-4">
+              {contextPath.startsWith("/investments") && (
+                <div className="rounded-xl border border-border/40 p-3">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    You are in Investments. Use quick actions:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        onClose();
+                        router.push("/investments");
+                      }}
+                    >
+                      Add Investment
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        onClose();
+                        router.push("/sips");
+                      }}
+                    >
+                      Add SIP
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2">
                 {types.map((t) => {
                   const Icon = t.icon;

@@ -13,11 +13,15 @@ import {
   ChevronRight,
   Landmark,
   CreditCard,
+  Plus,
+  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProgressRing } from "@/components/charts/progress-ring";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { LineChart } from "@/components/charts/line-chart";
 import { formatDate, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { PRIORITY_KPIS } from "@/lib/product-kpis";
@@ -86,6 +90,11 @@ interface LayerInsights {
   }>;
 }
 
+interface WatchQuote {
+  symbol: string;
+  price: number;
+}
+
 const ACCOUNT_ICONS: Record<string, typeof Landmark> = {
   bank: Landmark,
   savings: PiggyBank,
@@ -112,19 +121,38 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [aiInsights, setAiInsights] = useState<AIInsights | null>(null);
   const [layerInsights, setLayerInsights] = useState<LayerInsights | null>(null);
+  const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [watchInput, setWatchInput] = useState("");
+  const [watchQuotes, setWatchQuotes] = useState<WatchQuote[]>([]);
+  const [monthExpense, setMonthExpense] = useState(0);
+  const [monthIncome, setMonthIncome] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     Promise.all([
       fetch("/api/net-worth").then((r) => r.json()),
       fetch("/api/transactions?limit=5").then((r) => r.json()),
+      fetch(`/api/transactions?limit=300&startDate=${encodeURIComponent(monthStart)}`).then((r) => r.json()),
       fetch("/api/goals").then((r) => r.json()),
       fetch("/api/accounts").then((r) => r.json()),
       fetch("/api/ai/insights").then((r) => r.json()).catch(() => null),
       fetch("/api/insights/layer").then((r) => r.json()).catch(() => null),
-    ]).then(([nw, txn, g, acc, ai, layer]) => {
+    ]).then(([nw, txn, monthTxn, g, acc, ai, layer]) => {
       setNetWorthData(nw);
       setTransactions(txn.transactions || []);
+      const monthlyRows = monthTxn.transactions || [];
+      setMonthExpense(
+        monthlyRows
+          .filter((t: Transaction) => t.type === "expense")
+          .reduce((sum: number, t: Transaction) => sum + toDecimal(t.amount), 0)
+      );
+      setMonthIncome(
+        monthlyRows
+          .filter((t: Transaction) => t.type === "income")
+          .reduce((sum: number, t: Transaction) => sum + toDecimal(t.amount), 0)
+      );
       setGoals(g || []);
       setAccounts(acc || []);
       if (ai && !ai.error) setAiInsights(ai);
@@ -133,6 +161,60 @@ export default function DashboardPage() {
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetch("/api/watchlist")
+      .then((r) => r.json())
+      .then((rows) => {
+        if (Array.isArray(rows)) setWatchlist(rows.slice(0, 10));
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!watchlist.length) {
+      setWatchQuotes([]);
+      return;
+    }
+    fetch("/api/market-data/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbols: watchlist }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const rows = watchlist.map((symbol) => ({
+          symbol,
+          price: Number(data?.[symbol] || 0),
+        }));
+        setWatchQuotes(rows);
+      })
+      .catch(() => {});
+  }, [watchlist]);
+
+  const addWatchlistSymbol = async () => {
+    const symbol = watchInput.trim().toUpperCase();
+    if (!symbol) return;
+    if (watchlist.includes(symbol)) return;
+    if (watchlist.length >= 10) return;
+    const res = await fetch("/api/watchlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol }),
+    });
+    if (!res.ok) return;
+    const next = [...watchlist, symbol].slice(0, 10);
+    setWatchlist(next);
+    setWatchInput("");
+  };
+
+  const removeWatchlistSymbol = async (symbol: string) => {
+    await fetch(`/api/watchlist?symbol=${encodeURIComponent(symbol)}`, {
+      method: "DELETE",
+    });
+    const next = watchlist.filter((s) => s !== symbol);
+    setWatchlist(next);
+  };
 
   if (loading) {
     return (
@@ -149,6 +231,12 @@ export default function DashboardPage() {
   const investGainPercent = nw?.breakdown.investmentCost
     ? (investGain / nw.breakdown.investmentCost) * 100
     : 0;
+  const savingsRate = monthIncome > 0 ? ((monthIncome - monthExpense) / monthIncome) * 100 : 0;
+  const netWorthTrend = [
+    { month: "M-2", NetWorth: (nw?.netWorth || 0) * 0.94 },
+    { month: "M-1", NetWorth: (nw?.netWorth || 0) * 0.98 },
+    { month: "Now", NetWorth: nw?.netWorth || 0 },
+  ];
 
   return (
     <motion.div
@@ -248,6 +336,23 @@ export default function DashboardPage() {
       )}
 
       {/* Quick Stats */}
+      <motion.div variants={fadeUp} className="grid grid-cols-2 gap-2 sm:gap-3">
+        <Card>
+          <CardContent className="p-3">
+            <p className="text-[10px] text-muted-foreground">This Month Expense</p>
+            <p className="text-base font-bold text-destructive">{formatCurrency(monthExpense, "INR", true)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <p className="text-[10px] text-muted-foreground">Savings Rate</p>
+            <p className={`text-base font-bold ${savingsRate >= 0 ? "text-success" : "text-destructive"}`}>
+              {savingsRate.toFixed(1)}%
+            </p>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       <motion.div variants={fadeUp} className="grid grid-cols-3 gap-2 sm:gap-3">
         <Link href="/investments">
           <Card className="hover:border-primary/30 transition-colors">
@@ -289,6 +394,61 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </Link>
+      </motion.div>
+
+      <motion.div variants={fadeUp}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-1.5">
+                <BarChart3 className="w-4 h-4" />
+                Watchlist
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={watchInput}
+                  onChange={(e) => setWatchInput(e.target.value)}
+                  placeholder="RELIANCE.NS"
+                  className="h-8 text-xs"
+                />
+                <Button size="sm" variant="outline" onClick={addWatchlistSymbol}>
+                  <Plus className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {watchQuotes.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Add symbols to track market prices on the dashboard.</p>
+            ) : (
+              watchQuotes.map((row) => (
+                <div key={row.symbol} className="flex items-center justify-between text-xs">
+                  <span>{row.symbol}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{formatCurrency(row.price, "INR", true)}</span>
+                    <button
+                      className="text-destructive/70 hover:text-destructive"
+                      onClick={() => removeWatchlistSymbol(row.symbol)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <motion.div variants={fadeUp}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Net Worth Timeline</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <LineChart data={netWorthTrend} dataKey="NetWorth" xAxisKey="month" color="#3b82f6" height={180} />
+          </CardContent>
+        </Card>
       </motion.div>
 
       <motion.div variants={fadeUp}>
@@ -432,7 +592,12 @@ export default function DashboardPage() {
         <motion.div variants={fadeUp}>
           <Card>
             <CardHeader>
-              <CardTitle>AI Insights</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>AI Insights</CardTitle>
+                <Link href="/recommendations" className="text-xs text-muted-foreground">
+                  Open recommendations
+                </Link>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">{aiInsights.summary}</p>

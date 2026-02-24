@@ -48,6 +48,7 @@ export default function GoalInvestingPage() {
   const { fc: formatCurrency } = useFormat();
   const [data, setData] = useState<GoalPlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [whatIfMonthly, setWhatIfMonthly] = useState(0);
 
   const fetchData = async () => {
     setLoading(true);
@@ -60,6 +61,11 @@ export default function GoalInvestingPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    setWhatIfMonthly(Math.round(data.investableMonthly));
+  }, [data]);
 
   const totalShortfall = useMemo(
     () => (data?.goalPlans || []).reduce((sum, goal) => sum + goal.shortfall, 0),
@@ -87,6 +93,19 @@ export default function GoalInvestingPage() {
       })),
     [data]
   );
+  const projectedByWhatIf = useMemo(() => {
+    if (!data) return [];
+    const base = Math.max(1, data.investableMonthly);
+    return data.goalPlans.map((goal) => {
+      const ratio = whatIfMonthly / base;
+      const adjusted = goal.current + Math.max(0, goal.projectedAtDeadline - goal.current) * ratio;
+      return {
+        goalId: goal.goalId,
+        projected: adjusted,
+        shortfall: Math.max(0, goal.target - adjusted),
+      };
+    });
+  }, [data, whatIfMonthly]);
 
   if (loading) {
     return (
@@ -124,6 +143,26 @@ export default function GoalInvestingPage() {
           </CardContent>
         </Card>
       </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">What-if Monthly SIP</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <input
+            type="range"
+            min={0}
+            max={Math.max(200000, Math.round((data?.investableMonthly || 0) * 3))}
+            step={500}
+            value={whatIfMonthly}
+            onChange={(e) => setWhatIfMonthly(Number(e.target.value))}
+            className="w-full"
+          />
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Adjusted monthly invest</span>
+            <span className="font-semibold">{formatCurrency(whatIfMonthly, "INR", true)}</span>
+          </div>
+        </CardContent>
+      </Card>
 
       {monthlyTrendData.length > 0 && (
         <Card>
@@ -165,6 +204,7 @@ export default function GoalInvestingPage() {
       ) : (
         <div className="space-y-3">
           {data.goalPlans.map((goal) => {
+            const simulated = projectedByWhatIf.find((row) => row.goalId === goal.goalId);
             const progress = goal.target > 0 ? (goal.current / goal.target) * 100 : 0;
             const statusBadge =
               goal.status === "on_track" ? "success" : goal.status === "at_risk" ? "warning" : "destructive";
@@ -196,16 +236,20 @@ export default function GoalInvestingPage() {
                       <p className="text-muted-foreground">Projected</p>
                       <p className="font-semibold">{formatCurrency(goal.projectedAtDeadline, "INR", true)}</p>
                     </div>
+                    <div className="rounded-xl border border-border/50 p-2 col-span-2">
+                      <p className="text-muted-foreground">What-if projection</p>
+                      <p className="font-semibold">{formatCurrency(simulated?.projected || goal.projectedAtDeadline, "INR", true)}</p>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">
                       {goal.monthsLeft.toFixed(1)} months left
                     </span>
-                    <span className={goal.shortfall > 0 ? "text-warning" : "text-success"}>
-                      {goal.shortfall > 0 ? (
+                    <span className={(simulated?.shortfall ?? goal.shortfall) > 0 ? "text-warning" : "text-success"}>
+                      {(simulated?.shortfall ?? goal.shortfall) > 0 ? (
                         <>
                           <AlertTriangle className="w-3 h-3 inline mr-1" />
-                          Shortfall {formatCurrency(goal.shortfall, "INR", true)}
+                          Shortfall {formatCurrency(simulated?.shortfall ?? goal.shortfall, "INR", true)}
                         </>
                       ) : (
                         <>

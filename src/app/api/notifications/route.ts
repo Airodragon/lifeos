@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { createNotificationAndPush } from "@/lib/notifications";
 
 export async function GET() {
   try {
@@ -13,6 +14,27 @@ export async function GET() {
     return NextResponse.json(notifications);
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const user = await requireUser();
+    const body = await req.json();
+    if (!body.title || !body.message) {
+      return NextResponse.json({ error: "Missing title or message" }, { status: 400 });
+    }
+    const notif = await createNotificationAndPush({
+      userId: user.id,
+      title: String(body.title),
+      message: String(body.message),
+      type: String(body.type || "general"),
+      data: body.data,
+      url: String(body.url || "/notifications"),
+    });
+    return NextResponse.json(notif, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
 

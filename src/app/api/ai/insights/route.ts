@@ -12,14 +12,14 @@ export async function GET() {
 
     const [txns, budgets, investments] = await Promise.all([
       prisma.transaction.findMany({
-        where: { userId: user.id, date: { gte: start, lte: monthEnd } },
+        where: { userId: user.id, deletedAt: null, date: { gte: start, lte: monthEnd } },
         include: { category: true },
       }),
       prisma.budget.findMany({
         where: { userId: user.id, month: now.getMonth() + 1, year: now.getFullYear() },
         include: { category: true },
       }),
-      prisma.investment.findMany({ where: { userId: user.id } }),
+      prisma.investment.findMany({ where: { userId: user.id, deletedAt: null } }),
     ]);
 
     const monthIncome = txns

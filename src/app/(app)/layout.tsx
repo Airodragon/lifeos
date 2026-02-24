@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { PWAStatusBanner } from "@/components/layout/pwa-status-banner";
+import { PushBootstrap } from "@/components/features/push-bootstrap";
 
 export default async function AppLayout({
   children,
@@ -16,6 +17,7 @@ export default async function AppLayout({
     <div className="min-h-svh bg-background max-w-2xl mx-auto relative">
       <Header />
       <PWAStatusBanner />
+      <PushBootstrap />
       <main className="pb-24">{children}</main>
       <BottomNav />
     </div>

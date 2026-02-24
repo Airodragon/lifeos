@@ -33,6 +33,10 @@ model User {
   sips             SIP[]
   notifications    Notification[]
   emailConnections EmailConnection[]
+  watchlistItems   WatchlistItem[]
+  priceAlerts      PriceAlert[]
+  pushSubscriptions PushSubscription[]
+  recommendationSnapshots RecommendationSnapshot[]
 }
 
 model Authenticator {
@@ -103,6 +107,7 @@ model Transaction {
   tags        String[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   account  Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
@@ -110,6 +115,7 @@ model Transaction {
 
   @@index([userId, date])
   @@index([userId, type])
+  @@index([userId, deletedAt])
 }
 
 model Investment {
@@ -124,12 +130,14 @@ model Investment {
   currency     String    @default("INR")
   lastUpdated  DateTime?
   createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
 
   user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   dividends    Dividend[]
   transactions InvestmentTransaction[]
 
   @@index([userId])
+  @@index([userId, deletedAt])
 }
 
 model InvestmentTransaction {
@@ -339,4 +347,63 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
+}
+
+model WatchlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  symbol    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, symbol])
+  @@index([userId, createdAt])
+}
+
+model PriceAlert {
+  id            String    @id @default(cuid())
+  userId        String
+  symbol        String
+  targetPrice   Decimal   @db.Decimal(15, 4)
+  direction     String    @default("below")
+  status        String    @default("active")
+  notifyOnce    Boolean   @default(true)
+  cooldownMinutes Int     @default(60)
+  lastCheckedAt DateTime?
+  triggeredAt   DateTime?
+  lastNotifiedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([symbol, status])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model RecommendationSnapshot {
+  id        String   @id @default(cuid())
+  userId    String
+  summary   String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

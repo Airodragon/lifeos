@@ -19,6 +19,16 @@ interface Notification {
   createdAt: string;
 }
 
+interface PriceAlert {
+  id: string;
+  symbol: string;
+  targetPrice: number;
+  direction: "above" | "below";
+  status: string;
+  notifyOnce: boolean;
+  cooldownMinutes: number;
+}
+
 const TYPE_COLORS: Record<string, string> = {
   bill_reminder: "#eab308",
   investment_alert: "#3b82f6",
@@ -37,6 +47,11 @@ export default function NotificationsPage() {
     budgetUsageThreshold: "90",
     drawdownThreshold: "8",
   });
+  const [priceAlert, setPriceAlert] = useState({ symbol: "", belowPrice: "" });
+  const [direction, setDirection] = useState<"above" | "below">("below");
+  const [cooldownMinutes, setCooldownMinutes] = useState("60");
+  const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([]);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
 
   useEffect(() => {
     try {
@@ -57,9 +72,34 @@ export default function NotificationsPage() {
     setLoading(false);
   };
 
+  const fetchPriceAlerts = async () => {
+    const res = await fetch("/api/price-alerts");
+    const data = await res.json();
+    setPriceAlerts(Array.isArray(data) ? data : []);
+  };
+
   useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotifPermission(Notification.permission);
+    }
     fetchNotifications();
+    fetchPriceAlerts();
   }, []);
+
+  const enablePush = async () => {
+    if (!("Notification" in window)) {
+      toast.error("Browser notifications are not supported");
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    setNotifPermission(permission);
+    if (permission === "granted") {
+      toast.success("Push notifications enabled");
+      window.location.reload();
+    } else {
+      toast.error("Permission denied");
+    }
+  };
 
   const markRead = async (id: string) => {
     await fetch("/api/notifications", {
@@ -109,6 +149,43 @@ export default function NotificationsPage() {
     }
   };
 
+  const createPriceAlert = async () => {
+    if (!priceAlert.symbol || !priceAlert.belowPrice) return;
+    const symbol = priceAlert.symbol.trim().toUpperCase();
+    const target = Number(priceAlert.belowPrice);
+    if (!Number.isFinite(target) || target <= 0) {
+      toast.error("Enter a valid target price");
+      return;
+    }
+    const res = await fetch("/api/price-alerts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symbol,
+        targetPrice: target,
+        direction,
+        notifyOnce: true,
+        cooldownMinutes: Math.max(1, Number(cooldownMinutes || "60")),
+      }),
+    });
+    if (!res.ok) {
+      toast.error("Could not create price alert");
+      return;
+    }
+    setPriceAlert({ symbol: "", belowPrice: "" });
+    toast.success("Price alert created");
+    fetchPriceAlerts();
+  };
+
+  const disablePriceAlert = async (id: string) => {
+    await fetch("/api/price-alerts", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status: "disabled" }),
+    });
+    fetchPriceAlerts();
+  };
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   if (loading) {
@@ -119,6 +196,16 @@ export default function NotificationsPage() {
     <div className="p-4 space-y-4">
       <Card id="alerts-engine">
         <CardContent className="p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-border/40 p-2">
+            <p className="text-xs text-muted-foreground">
+              Push notifications: <span className="font-medium">{notifPermission}</span>
+            </p>
+            {notifPermission !== "granted" && (
+              <Button size="sm" variant="outline" onClick={enablePush}>
+                Enable push
+              </Button>
+            )}
+          </div>
           <div className="flex items-center justify-between gap-2">
             <div>
               <p className="text-sm font-semibold flex items-center gap-1.5">
@@ -156,6 +243,66 @@ export default function NotificationsPage() {
               onChange={(e) => setAlertConfig((p) => ({ ...p, drawdownThreshold: e.target.value }))}
             />
           </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-3 space-y-2">
+          <p className="text-sm font-semibold">Price alert</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              label="Symbol"
+              value={priceAlert.symbol}
+              onChange={(e) => setPriceAlert((p) => ({ ...p, symbol: e.target.value }))}
+              placeholder="RELIANCE.NS"
+            />
+            <Input
+              label="Notify below"
+              type="number"
+              value={priceAlert.belowPrice}
+              onChange={(e) => setPriceAlert((p) => ({ ...p, belowPrice: e.target.value }))}
+              placeholder="2400"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Direction</label>
+            <select
+              value={direction}
+              onChange={(e) => setDirection(e.target.value as "above" | "below")}
+              className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
+            >
+              <option value="below">Notify when price falls below target</option>
+              <option value="above">Notify when price rises above target</option>
+            </select>
+          </div>
+          <Input
+            label="Alert cooldown (minutes)"
+            type="number"
+            value={cooldownMinutes}
+            onChange={(e) => setCooldownMinutes(e.target.value)}
+            placeholder="60"
+          />
+          <Button size="sm" variant="outline" onClick={createPriceAlert}>
+            Save Price Alert
+          </Button>
+          {priceAlerts.length > 0 && (
+            <div className="space-y-1">
+              {priceAlerts.slice(0, 6).map((item) => (
+                <div key={item.id} className="flex items-center justify-between text-xs border border-border/40 rounded-lg px-2 py-1.5">
+                  <span>
+                    {item.symbol} {item.direction} {item.targetPrice.toFixed(2)} ({item.status}, {item.cooldownMinutes}m cooldown)
+                  </span>
+                  {item.status === "active" && (
+                    <button
+                      onClick={() => disablePriceAlert(item.id)}
+                      className="text-destructive/70 hover:text-destructive"
+                    >
+                      Disable
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

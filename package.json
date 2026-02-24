@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
-    "db:migrate": "prisma migrate dev",
+    "push:vapid": "node scripts/generate-vapid-keys.mjs",
+    "db:migrate": "prisma db push",
+    "db:migrate:dev": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "npx tsx prisma/seed.ts"
   },
@@ -43,6 +45,7 @@
     "recharts": "^3.7.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
+    "web-push": "^3.6.7",
     "yahoo-finance2": "^3.13.0",
     "zod": "^4.3.6"
   },

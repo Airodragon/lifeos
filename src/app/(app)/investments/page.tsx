@@ -122,6 +122,8 @@ export default function InvestmentsPage() {
   const [layerInsights, setLayerInsights] = useState<LayerInsights | null>(null);
   const [analytics, setAnalytics] = useState<InvestmentAnalytics | null>(null);
   const [dayPnlEstimate, setDayPnlEstimate] = useState(0);
+  const [marketSyncError, setMarketSyncError] = useState<string | null>(null);
+  const [lastPriceSyncAt, setLastPriceSyncAt] = useState<string | null>(null);
   const [txnForm, setTxnForm] = useState({
     type: "buy" as InvestmentTxn["type"],
     quantity: "",
@@ -141,32 +143,48 @@ export default function InvestmentsPage() {
   });
 
   const fetchInvestments = async () => {
-    const res = await fetch("/api/investments");
-    const data = await res.json();
-    setInvestments(data || []);
-    markDataSynced();
-    setLoading(false);
     try {
-      const snapshots = JSON.parse(localStorage.getItem("lifeos-investment-price-snapshot") || "{}") as Record<string, number>;
-      let dayPnl = 0;
-      for (const inv of data || []) {
-        const current = toDecimal(inv.currentPrice);
-        const old = snapshots[inv.id];
-        if (current > 0 && typeof old === "number") {
-          dayPnl += (current - old) * toDecimal(inv.quantity);
+      const res = await fetch("/api/investments");
+      if (!res.ok) throw new Error("Failed to load investments");
+      const data = await res.json();
+      setInvestments(data || []);
+      markDataSynced();
+      setLoading(false);
+      setMarketSyncError(null);
+
+      const latest = (data || []).reduce((max: string | null, inv: Investment) => {
+        if (!inv.lastUpdated) return max;
+        if (!max) return inv.lastUpdated;
+        return new Date(inv.lastUpdated) > new Date(max) ? inv.lastUpdated : max;
+      }, null);
+      setLastPriceSyncAt(latest);
+
+      try {
+        const snapshots = JSON.parse(localStorage.getItem("lifeos-investment-price-snapshot") || "{}") as Record<string, number>;
+        let dayPnl = 0;
+        for (const inv of data || []) {
+          const current = toDecimal(inv.currentPrice);
+          const old = snapshots[inv.id];
+          if (current > 0 && typeof old === "number") {
+            dayPnl += (current - old) * toDecimal(inv.quantity);
+          }
         }
+        setDayPnlEstimate(dayPnl);
+        const nextSnapshots: Record<string, number> = {};
+        for (const inv of data || []) {
+          const current = toDecimal(inv.currentPrice);
+          if (current > 0) nextSnapshots[inv.id] = current;
+        }
+        localStorage.setItem("lifeos-investment-price-snapshot", JSON.stringify(nextSnapshots));
+      } catch {
+        // ignore local snapshot failures
       }
-      setDayPnlEstimate(dayPnl);
-      const nextSnapshots: Record<string, number> = {};
-      for (const inv of data || []) {
-        const current = toDecimal(inv.currentPrice);
-        if (current > 0) nextSnapshots[inv.id] = current;
-      }
-      localStorage.setItem("lifeos-investment-price-snapshot", JSON.stringify(nextSnapshots));
+      return data || [];
     } catch {
-      // ignore local snapshot failures
+      setLoading(false);
+      setMarketSyncError("Could not load investments. Please retry.");
+      return [];
     }
-    return data || [];
   };
 
   const autoRefreshPrices = async (invs: Investment[]) => {
@@ -191,12 +209,36 @@ export default function InvestmentsPage() {
           );
         await Promise.all(updates);
         await fetchInvestments();
+        setMarketSyncError(null);
+        setLastPriceSyncAt(new Date().toISOString());
+      } else {
+        const payload = await res.json().catch(() => ({}));
+        setMarketSyncError(payload?.error || "Live quotes unavailable. Showing last synced prices.");
       }
     } catch {
-      // silent fail for auto-refresh
+      setMarketSyncError("Live quotes unavailable. Showing last synced prices.");
     }
     setRefreshing(false);
   };
+
+  useEffect(() => {
+    try {
+      const savedSort = localStorage.getItem("lifeos-investments-sort");
+      if (savedSort === "value" || savedSort === "gain" || savedSort === "weight" || savedSort === "name") {
+        setSortBy(savedSort);
+      }
+    } catch {
+      // ignore local storage errors
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("lifeos-investments-sort", sortBy);
+    } catch {
+      // ignore local storage errors
+    }
+  }, [sortBy]);
 
   useEffect(() => {
     fetchInvestments().then((data) => {
@@ -244,7 +286,7 @@ export default function InvestmentsPage() {
 
   const handleAdd = async () => {
     if (!form.symbol || !form.quantity || !form.avgBuyPrice) return;
-    await fetch("/api/investments", {
+    const res = await fetch("/api/investments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -253,6 +295,11 @@ export default function InvestmentsPage() {
         avgBuyPrice: parseFloat(form.avgBuyPrice),
       }),
     });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      toast.error(payload?.error || "Could not add investment");
+      return;
+    }
     setShowAdd(false);
     setForm({ symbol: "", name: "", type: "stock", quantity: "", avgBuyPrice: "" });
     fetchInvestments();
@@ -344,6 +391,32 @@ export default function InvestmentsPage() {
     await fetchInvestments();
   };
 
+  const exportHoldingsCsv = () => {
+    const rows = [
+      ["Symbol", "Name", "Type", "Quantity", "AvgBuyPrice", "CurrentPrice", "Value", "GainPercent"],
+      ...sortedPortfolio.map((item) => [
+        item.symbol,
+        item.name,
+        item.type,
+        item.qty,
+        item.avg,
+        item.current,
+        item.value,
+        item.gainPercent,
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lifeos-holdings-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="p-4 space-y-3">
@@ -391,7 +464,7 @@ export default function InvestmentsPage() {
   const currentValueForLedger = selectedInv?.value || 0;
 
   const calcXirr = () => {
-    if (!ledger.length || !currentValueForLedger) return 0;
+    if (!ledger.length || !currentValueForLedger) return { value: 0, usedFallback: false };
     const cashflows = ledger
       .map((t) => ({
         date: new Date(t.date),
@@ -417,23 +490,34 @@ export default function InvestmentsPage() {
         return sum - (years * cf.amount) / Math.pow(1 + rate, years + 1);
       }, 0);
 
-    let guess = 0.12;
-    for (let i = 0; i < 50; i++) {
-      const f = npv(guess);
-      const df = dnpv(guess);
-      if (Math.abs(df) < 1e-10) break;
-      const next = guess - f / df;
-      if (!Number.isFinite(next)) break;
-      if (Math.abs(next - guess) < 1e-8) {
-        guess = next;
-        break;
+    try {
+      let guess = 0.12;
+      for (let i = 0; i < 50; i++) {
+        const f = npv(guess);
+        const df = dnpv(guess);
+        if (Math.abs(df) < 1e-10) break;
+        const next = guess - f / df;
+        if (!Number.isFinite(next)) break;
+        if (Math.abs(next - guess) < 1e-8) {
+          guess = next;
+          break;
+        }
+        guess = Math.max(-0.99, Math.min(10, next));
       }
-      guess = Math.max(-0.99, Math.min(10, next));
+      return { value: guess * 100, usedFallback: false };
+    } catch {
+      const startDate = ledger.reduce(
+        (min, item) => (new Date(item.date) < min ? new Date(item.date) : min),
+        new Date(ledger[0].date)
+      );
+      const years = Math.max(0.01, (Date.now() - startDate.getTime()) / (365.25 * 86400000));
+      const cagr = Math.pow(Math.max(1, currentValueForLedger) / Math.max(1, ledgerNet), 1 / years) - 1;
+      return { value: Number.isFinite(cagr) ? cagr * 100 : 0, usedFallback: true };
     }
-    return guess * 100;
   };
 
-  const xirr = calcXirr();
+  const xirrResult = calcXirr();
+  const xirr = xirrResult.value;
   const sortedPortfolio = [...portfolio].sort((a, b) => {
     if (sortBy === "name") return a.name.localeCompare(b.name);
     if (sortBy === "gain") return b.gainPercent - a.gainPercent;
@@ -481,6 +565,9 @@ export default function InvestmentsPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Portfolio</h2>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={exportHoldingsCsv}>
+            Export CSV
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -494,6 +581,16 @@ export default function InvestmentsPage() {
           </Button>
         </div>
       </div>
+      {marketSyncError && (
+        <Card className="border-warning/40">
+          <CardContent className="p-2.5 text-xs text-warning">
+            {marketSyncError}{" "}
+            {lastPriceSyncAt
+              ? `Last successful sync at ${new Date(lastPriceSyncAt).toLocaleTimeString("en-IN")}`
+              : ""}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-4 gap-1 rounded-xl bg-muted p-1 text-xs">
         {(["holdings", "performance", "cashflows", "insights"] as const).map((view) => (
@@ -586,6 +683,12 @@ export default function InvestmentsPage() {
                   </p>
                   <p className="text-xs font-semibold">{formatCurrency(totalInvested)}</p>
                 </div>
+                <div className="rounded-xl border border-border/50 p-2 col-span-2">
+                  <p className="text-[10px] text-muted-foreground">Unrealised P&L</p>
+                  <p className={`text-xs font-semibold ${totalGain >= 0 ? "text-success" : "text-destructive"}`}>
+                    {formatCurrency(totalGain)}
+                  </p>
+                </div>
               </div>
               {allocationData.length > 0 && (
                 <DonutChart
@@ -638,7 +741,14 @@ export default function InvestmentsPage() {
                       <span>Qty: {inv.qty}</span>
                       <span>Avg: {formatCurrency(inv.avg)}</span>
                       <span>LTP: {formatCurrency(inv.current)}</span>
-                      <span className={inv.lastUpdated ? "" : "text-warning"}>
+                      <span
+                        className={
+                          !inv.lastUpdated ||
+                          Math.round((Date.now() - new Date(inv.lastUpdated).getTime()) / 60000) > 15
+                            ? "text-warning"
+                            : ""
+                        }
+                      >
                         {inv.lastUpdated
                           ? `${Math.max(
                               0,
@@ -896,6 +1006,9 @@ export default function InvestmentsPage() {
                 <p className={`font-semibold ${xirr >= 0 ? "text-success" : "text-destructive"}`}>
                   {Number.isFinite(xirr) ? `${xirr.toFixed(2)}%` : "—"}
                 </p>
+                {xirrResult.usedFallback && (
+                  <p className="text-[10px] text-muted-foreground">Fallback CAGR used</p>
+                )}
               </div>
               <div>
                 <p className="text-muted-foreground">5Y Projection @XIRR</p>

@@ -13,6 +13,10 @@ const createSchema = z.object({
   tags: z.array(z.string()).optional(),
 });
 
+function accountDelta(type: string, amount: number) {
+  return type === "income" ? amount : -amount;
+}
+
 export async function GET(req: Request) {
   try {
     const user = await requireUser();
@@ -23,8 +27,9 @@ export async function GET(req: Request) {
     const categoryId = searchParams.get("categoryId");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const q = searchParams.get("q")?.trim();
 
-    const where: Record<string, unknown> = { userId: user.id };
+    const where: Record<string, unknown> = { userId: user.id, deletedAt: null };
     if (type) where.type = type;
     if (categoryId) where.categoryId = categoryId;
     if (startDate || endDate) {
@@ -32,6 +37,13 @@ export async function GET(req: Request) {
         ...(startDate && { gte: new Date(startDate) }),
         ...(endDate && { lte: new Date(endDate) }),
       };
+    }
+    if (q) {
+      where.OR = [
+        { description: { contains: q, mode: "insensitive" } },
+        { category: { name: { contains: q, mode: "insensitive" } } },
+        { account: { name: { contains: q, mode: "insensitive" } } },
+      ];
     }
 
     const [transactions, total] = await Promise.all([
@@ -56,29 +68,39 @@ export async function POST(req: Request) {
     const user = await requireUser();
     const body = await req.json();
     const data = createSchema.parse(body);
-
-    const transaction = await prisma.transaction.create({
-      data: {
-        userId: user.id,
-        amount: data.amount,
-        type: data.type,
-        description: data.description,
-        date: new Date(data.date),
-        categoryId: data.categoryId,
-        accountId: data.accountId,
-        tags: data.tags || [],
-      },
-      include: { category: true, account: true },
-    });
-
     if (data.accountId) {
-      const delta = data.type === "income" ? data.amount : -data.amount;
-      await prisma.account.update({
-        where: { id: data.accountId },
-        data: { balance: { increment: delta } },
+      const account = await prisma.account.findFirst({
+        where: { id: data.accountId, userId: user.id },
+        select: { id: true },
       });
+      if (!account) {
+        return NextResponse.json({ error: "Account not found" }, { status: 400 });
+      }
     }
 
+    const transaction = await prisma.$transaction(async (tx) => {
+      const created = await tx.transaction.create({
+        data: {
+          userId: user.id,
+          amount: data.amount,
+          type: data.type,
+          description: data.description,
+          date: new Date(data.date),
+          categoryId: data.categoryId,
+          accountId: data.accountId,
+          tags: data.tags || [],
+        },
+        include: { category: true, account: true },
+      });
+
+      if (data.accountId) {
+        await tx.account.update({
+          where: { id: data.accountId },
+          data: { balance: { increment: accountDelta(data.type, data.amount) } },
+        });
+      }
+      return created;
+    });
     return NextResponse.json(transaction, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {

@@ -8,6 +8,7 @@ import {
   Filter,
   Search,
   Calendar,
+  Pencil,
   ArrowLeftRight,
   Upload,
 } from "lucide-react";
@@ -59,6 +60,12 @@ interface LayerInsightPayload {
   }>;
 }
 
+interface BudgetRow {
+  categoryId: string;
+  amount: number;
+  spent: number;
+}
+
 const typeIcon = {
   income: TrendingUp,
   expense: TrendingDown,
@@ -69,6 +76,13 @@ const SAMPLE_CSV = `Date,Description,Debit,Credit
 2026-02-01,UPI - Grocery Store,1250.00,
 2026-02-02,Salary,,85000.00
 2026-02-03,Electricity Bill,2100.50,`;
+const BANK_TEMPLATES: Record<string, string> = {
+  HDFC: `Date,Narration,Debit,Credit\n2026-02-01,UPI-PAYMENT,450.00,`,
+  ICICI: `Transaction Date,Transaction Remarks,Withdrawal Amount,Deposit Amount\n2026-02-01,UPI PAYMENT,450.00,`,
+  AXIS: `Tran Date,Particulars,Debit,Credit\n2026-02-01,UPI/1234,450.00,`,
+  SBI: `Txn Date,Description,Debit,Credit\n2026-02-01,UPI DR,450.00,`,
+  KOTAK: `Date,Description,Debit,Credit\n2026-02-01,POS DR,450.00,`,
+};
 const CHART_COLORS = ["#3b82f6", "#22c55e", "#f97316", "#8b5cf6", "#14b8a6", "#ec4899"];
 
 function localDateTimeValue(d = new Date()) {
@@ -85,11 +99,17 @@ export default function ExpensesPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [chartRange, setChartRange] = useState<"7d" | "30d" | "3m" | "1y">("30d");
   const [search, setSearch] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [layerInsights, setLayerInsights] = useState<LayerInsightPayload | null>(null);
+  const [budgets, setBudgets] = useState<BudgetRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [importForm, setImportForm] = useState({
     accountId: "",
@@ -103,34 +123,66 @@ export default function ExpensesPage() {
     accountId: "",
     date: localDateTimeValue(),
   });
+  const [editFormData, setEditFormData] = useState({
+    id: "",
+    amount: "",
+    type: "expense",
+    description: "",
+    categoryId: "",
+    accountId: "",
+    date: localDateTimeValue(),
+  });
   const quickCategories = ["Food", "Fuel", "Bills", "Transfer", "Groceries", "Health"];
 
   const fetchData = useCallback(async () => {
-    const typeParam = activeTab !== "all" ? `&type=${activeTab}` : "";
+    const params = new URLSearchParams({
+      limit: "20",
+      page: String(page),
+    });
+    if (activeTab !== "all") params.set("type", activeTab);
+    if (search.trim()) params.set("q", search.trim());
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
     const [txnRes, catRes, accRes] = await Promise.all([
-      fetch(`/api/transactions?limit=50${typeParam}`),
+      fetch(`/api/transactions?${params.toString()}`),
       fetch("/api/categories"),
       fetch("/api/accounts"),
     ]);
     const txnData = await txnRes.json();
     const catData = await catRes.json();
     const accData = await accRes.json();
-    setTransactions(txnData.transactions || []);
+    setTransactions((prev) =>
+      page === 1 ? (txnData.transactions || []) : [...prev, ...(txnData.transactions || [])]
+    );
+    setHasMore((txnData.page || 1) * (txnData.limit || 20) < (txnData.total || 0));
     setCategories(catData || []);
     setAccounts(accData || []);
     markDataSynced();
     setLoading(false);
-  }, [activeTab]);
+  }, [activeTab, search, startDate, endDate, page]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   useEffect(() => {
+    setPage(1);
+  }, [activeTab, search, startDate, endDate]);
+
+  useEffect(() => {
     fetch("/api/insights/layer")
       .then((r) => r.json())
       .then((d) => {
         if (!d?.error) setLayerInsights(d);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/budgets")
+      .then((r) => r.json())
+      .then((rows) => {
+        if (Array.isArray(rows)) setBudgets(rows);
       })
       .catch(() => {});
   }, []);
@@ -186,7 +238,45 @@ export default function ExpensesPage() {
 
   const handleDelete = async (id: string) => {
     await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+    setPage(1);
     fetchData();
+  };
+
+  const openEdit = (txn: Transaction) => {
+    setEditFormData({
+      id: txn.id,
+      amount: toDecimal(txn.amount).toString(),
+      type: txn.type,
+      description: txn.description || "",
+      categoryId: txn.category?.id || "",
+      accountId: txn.account?.id || "",
+      date: new Date(txn.date).toISOString().slice(0, 16),
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!editFormData.id || !editFormData.amount) return;
+    const res = await fetch(`/api/transactions/${editFormData.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount: parseFloat(editFormData.amount),
+        type: editFormData.type,
+        description: editFormData.description || undefined,
+        date: editFormData.date,
+        categoryId: editFormData.categoryId || undefined,
+        accountId: editFormData.accountId || undefined,
+      }),
+    });
+    if (!res.ok) {
+      toast.error("Failed to update transaction");
+      return;
+    }
+    setShowEditModal(false);
+    setPage(1);
+    fetchData();
+    toast.success("Transaction updated");
   };
 
   const handleImport = async () => {
@@ -231,13 +321,37 @@ export default function ExpensesPage() {
     }
   };
 
-  const filtered = transactions.filter((t) =>
-    search
-      ? t.description?.toLowerCase().includes(search.toLowerCase()) ||
-        t.category?.name.toLowerCase().includes(search.toLowerCase()) ||
-        t.account?.name.toLowerCase().includes(search.toLowerCase())
-      : true
-  );
+  const exportTransactionsCsv = () => {
+    const rows = [
+      ["Date", "Type", "Description", "Category", "Account", "Amount"],
+      ...filtered.map((txn) => [
+        new Date(txn.date).toISOString(),
+        txn.type,
+        txn.description || "",
+        txn.category?.name || "",
+        txn.account?.name || "",
+        txn.amount,
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lifeos-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const filtered = transactions;
+  const recurringByDescription = filtered.reduce((acc, txn) => {
+    const key = (txn.description || "").trim().toLowerCase();
+    if (!key) return acc;
+    acc.set(key, (acc.get(key) || 0) + 1);
+    return acc;
+  }, new Map<string, number>());
 
   const totalExpense = filtered
     .filter((t) => t.type === "expense")
@@ -300,6 +414,15 @@ export default function ExpensesPage() {
     }
     return ct.includes("income") || ct.includes("credit");
   });
+  const editCategoryOptions = categories.filter((c) => {
+    const ct = (c.type || "").toLowerCase().trim();
+    if (editFormData.type === "transfer") return true;
+    if (editFormData.type === "expense") {
+      return ct.includes("expense") || ct.includes("debit") || !ct.includes("income");
+    }
+    return ct.includes("income") || ct.includes("credit");
+  });
+  const budgetByCategory = new Map(budgets.map((b) => [b.categoryId, b]));
 
   if (loading) {
     return (
@@ -414,10 +537,27 @@ export default function ExpensesPage() {
           className="w-full h-10 pl-9 pr-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Input
+          label="From"
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+        />
+        <Input
+          label="To"
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+        />
+      </div>
 
       <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}>
         <Upload className="w-4 h-4 mr-1" />
         Import Statement CSV
+      </Button>
+      <Button variant="outline" size="sm" onClick={exportTransactionsCsv}>
+        Export CSV
       </Button>
 
       {filtered.length === 0 ? (
@@ -462,6 +602,10 @@ export default function ExpensesPage() {
                           <p className="text-sm font-medium truncate">
                             {txn.description || txn.category?.name || "Transaction"}
                           </p>
+                          {txn.description &&
+                            (recurringByDescription.get(txn.description.trim().toLowerCase()) || 0) >= 3 && (
+                              <p className="text-[10px] text-primary/80">Recurring pattern</p>
+                            )}
                           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground flex-wrap">
                             <Calendar className="w-3 h-3 shrink-0" />
                             <span>{formatDateTime(txn.date)}</span>
@@ -469,6 +613,13 @@ export default function ExpensesPage() {
                               <>
                                 <span>·</span>
                                 <span className="truncate">{txn.category.name}</span>
+                                {(() => {
+                                  const budget = budgetByCategory.get(txn.category.id);
+                                  if (!budget || budget.amount <= 0) return null;
+                                  const usage = (budget.spent / budget.amount) * 100;
+                                  if (usage < 100) return null;
+                                  return <span className="text-destructive">Over budget</span>;
+                                })()}
                               </>
                             )}
                             {txn.account && (
@@ -490,6 +641,13 @@ export default function ExpensesPage() {
                           {formatCurrency(toDecimal(txn.amount))}
                         </p>
                         <button
+                          onClick={() => openEdit(txn)}
+                          className="mr-2 inline-flex items-center gap-1 text-[10px] text-primary/70 hover:text-primary"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          Edit
+                        </button>
+                        <button
                           onClick={() => handleDelete(txn.id)}
                           className="text-[10px] text-destructive/60 hover:text-destructive"
                         >
@@ -503,6 +661,11 @@ export default function ExpensesPage() {
             })}
           </div>
         </AnimatePresence>
+      )}
+      {hasMore && (
+        <Button variant="outline" className="w-full" onClick={() => setPage((p) => p + 1)}>
+          Load more transactions
+        </Button>
       )}
 
       <div className="fixed bottom-20 right-4 z-30">
@@ -675,6 +838,22 @@ export default function ExpensesPage() {
               >
                 Use Sample CSV
               </Button>
+              {Object.keys(BANK_TEMPLATES).map((bank) => (
+                <Button
+                  key={bank}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setImportForm((p) => ({
+                      ...p,
+                      csvText: BANK_TEMPLATES[bank],
+                    }))
+                  }
+                >
+                  {bank} Template
+                </Button>
+              ))}
             </div>
             <textarea
               rows={10}
@@ -700,6 +879,81 @@ export default function ExpensesPage() {
             disabled={importing || !importForm.csvText.trim()}
           >
             {importing ? "Importing..." : "Import & Reconcile"}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        title="Edit Transaction"
+      >
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            {["expense", "income", "transfer"].map((t) => (
+              <button
+                key={t}
+                onClick={() => setEditFormData((p) => ({ ...p, type: t }))}
+                className={`flex-1 py-2 rounded-xl text-sm font-medium capitalize ${
+                  editFormData.type === t
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <Input
+            label="Amount"
+            type="number"
+            value={editFormData.amount}
+            onChange={(e) => setEditFormData((p) => ({ ...p, amount: e.target.value }))}
+            inputMode="decimal"
+          />
+          <Input
+            label="Description"
+            value={editFormData.description}
+            onChange={(e) => setEditFormData((p) => ({ ...p, description: e.target.value }))}
+          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Category</label>
+            <select
+              value={editFormData.categoryId}
+              onChange={(e) => setEditFormData((p) => ({ ...p, categoryId: e.target.value }))}
+              className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
+            >
+              <option value="">Select category</option>
+              {editCategoryOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Account</label>
+            <select
+              value={editFormData.accountId}
+              onChange={(e) => setEditFormData((p) => ({ ...p, accountId: e.target.value }))}
+              className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
+            >
+              <option value="">No account</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Input
+            label="Date & Time"
+            type="datetime-local"
+            value={editFormData.date}
+            onChange={(e) => setEditFormData((p) => ({ ...p, date: e.target.value }))}
+          />
+          <Button onClick={handleEditSave} className="w-full" disabled={!editFormData.amount}>
+            Save Changes
           </Button>
         </div>
       </Modal>

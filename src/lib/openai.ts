@@ -96,6 +96,14 @@ export interface WeeklyCfoBriefResult {
   nextActions: string[];
 }
 
+export interface RecommendationResult {
+  summary: string;
+  portfolioActions: string[];
+  spendingActions: string[];
+  riskAlerts: string[];
+  next7Days: string[];
+}
+
 export async function generateFinancialInsights(input: {
   currency: string;
   monthIncome: number;
@@ -191,6 +199,66 @@ Return ONLY valid JSON:
         "Set a fixed spend cap for the next 7 days.",
         "Pre-plan upcoming bill payments to avoid surprises.",
         "Auto-transfer part of surplus to investments/goals.",
+      ],
+    };
+  }
+}
+
+export async function generateActionRecommendations(input: {
+  currency: string;
+  monthIncome: number;
+  monthExpense: number;
+  savingsRate: number;
+  concentration: Array<{ symbol: string; weight: number; riskLevel: string }>;
+  topSpends: Array<{ name: string; amount: number }>;
+  watchlist: string[];
+  priceAlerts: Array<{ symbol: string; targetPrice: number; direction: string; status: string }>;
+}): Promise<RecommendationResult> {
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const prompt = `You are a senior personal finance + investing advisor for an Indian retail investor.
+Given this profile, return practical, low-jargon recommendations.
+
+Profile:
+- Currency: ${input.currency}
+- Month income: ${input.monthIncome}
+- Month expense: ${input.monthExpense}
+- Savings rate: ${input.savingsRate}%
+- Concentration risks: ${JSON.stringify(input.concentration)}
+- Top spending buckets: ${JSON.stringify(input.topSpends)}
+- Watchlist: ${JSON.stringify(input.watchlist)}
+- Price alerts: ${JSON.stringify(input.priceAlerts)}
+
+Return ONLY JSON:
+{
+  "summary": "2-3 sentence overview",
+  "portfolioActions": ["3-5 portfolio actions"],
+  "spendingActions": ["3-5 spending actions"],
+  "riskAlerts": ["0-4 concise risk alerts"],
+  "next7Days": ["3-6 concrete tasks for next 7 days"]
+}`;
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonStr = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    return JSON.parse(jsonStr) as RecommendationResult;
+  } catch {
+    return {
+      summary: "Your profile is stable, with room to improve diversification and spending discipline.",
+      portfolioActions: [
+        "Cap any single holding to under 25% portfolio weight.",
+        "Review watchlist names and keep alerts only for high-conviction entries.",
+        "Add staggered SIP allocations to reduce timing risk.",
+      ],
+      spendingActions: [
+        "Set weekly spend caps for your top two discretionary categories.",
+        "Review recurring subscriptions and cancel low-usage services.",
+        "Move a fixed amount to savings on salary day.",
+      ],
+      riskAlerts: [],
+      next7Days: [
+        "Rebalance one overweight position.",
+        "Create or refine 3 key price alerts.",
+        "Audit the last 30 days of high-value expenses.",
       ],
     };
   }
