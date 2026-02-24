@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const defaultModelName = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
 const CATEGORIES = [
   "Food & Dining",
@@ -31,13 +32,86 @@ interface CategorizationResult {
   confidence: number;
 }
 
+function getModel(modelName?: string) {
+  return genAI.getGenerativeModel({ model: modelName || defaultModelName });
+}
+
+function parseFirstJson<T>(text: string): T | null {
+  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const firstArray = cleaned.indexOf("[");
+  const firstObject = cleaned.indexOf("{");
+  const start =
+    firstArray >= 0 && firstObject >= 0
+      ? Math.min(firstArray, firstObject)
+      : Math.max(firstArray, firstObject);
+  if (start < 0) return null;
+  const lastArray = cleaned.lastIndexOf("]");
+  const lastObject = cleaned.lastIndexOf("}");
+  const end = Math.max(lastArray, lastObject);
+  if (end <= start) return null;
+  try {
+    return JSON.parse(cleaned.slice(start, end + 1)) as T;
+  } catch {
+    return null;
+  }
+}
+
+function inferTransactionFromText(emailBody: string): {
+  amount: number;
+  description: string;
+  merchant: string;
+  date: string;
+  type: "income" | "expense";
+} | null {
+  const compact = emailBody.replace(/\s+/g, " ").trim();
+  if (!compact) return null;
+
+  const amountMatch =
+    compact.match(/(?:rs\.?|inr|₹)\s*([0-9][0-9,]*\.?[0-9]{0,2})/i) ||
+    compact.match(/([0-9][0-9,]*\.?[0-9]{0,2})\s*(?:rs\.?|inr|₹)/i) ||
+    compact.match(/\b([0-9][0-9,]*\.[0-9]{2})\b/);
+  if (!amountMatch) return null;
+
+  const amount = Number((amountMatch[1] || "").replace(/,/g, ""));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const dateMatch =
+    compact.match(/\b(\d{4}-\d{2}-\d{2})\b/) ||
+    compact.match(/\b(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})\b/);
+  const parsedDate = dateMatch ? new Date(dateMatch[1]) : new Date();
+  const yyyy = parsedDate.getFullYear();
+  const mm = `${parsedDate.getMonth() + 1}`.padStart(2, "0");
+  const dd = `${parsedDate.getDate()}`.padStart(2, "0");
+  const date = `${yyyy}-${mm}-${dd}`;
+
+  const lower = compact.toLowerCase();
+  const type: "income" | "expense" =
+    /\b(credited|received|deposit|refund)\b/.test(lower) &&
+    !/\b(debited|spent|withdrawn|paid)\b/.test(lower)
+      ? "income"
+      : "expense";
+
+  const merchantMatch =
+    compact.match(/(?:merchant|to|at)\s*[:\-]?\s*([A-Za-z0-9&.\- ]{3,40})/i) ||
+    compact.match(/(?:from)\s*[:\-]?\s*([A-Za-z0-9&.\- ]{3,40})/i);
+  const merchant = merchantMatch?.[1]?.trim() || "Transaction";
+
+  return {
+    amount,
+    description: compact.slice(0, 240),
+    merchant,
+    date,
+    type,
+  };
+}
+
 export async function categorizeTransaction(
   description: string,
   amount: number,
   merchant?: string
 ): Promise<CategorizationResult> {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = getModel();
 
     const prompt = `You are a financial transaction categorizer. Categorize this transaction into exactly one of these categories: ${CATEGORIES.join(", ")}.
 
@@ -47,8 +121,15 @@ Respond ONLY with valid JSON, no markdown: {"category": "...", "tags": ["..."], 
 
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
-    const jsonStr = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(jsonStr) as CategorizationResult;
+    const parsed = parseFirstJson<CategorizationResult>(text);
+    if (parsed?.category) {
+      return {
+        category: parsed.category,
+        tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 8) : [],
+        confidence: Number(parsed.confidence) || 0,
+      };
+    }
+    return { category: "Other", tags: [], confidence: 0 };
   } catch {
     return { category: "Other", tags: [], confidence: 0 };
   }
@@ -64,21 +145,39 @@ export async function parseEmailTransaction(
   type: "income" | "expense";
 } | null> {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = getModel(process.env.GEMINI_EMAIL_MODEL || defaultModelName);
 
-    const prompt = `Extract financial transaction details from this email. If the email contains a transaction, respond ONLY with valid JSON (no markdown): {"amount": number, "description": "...", "merchant": "...", "date": "YYYY-MM-DD", "type": "income"|"expense"}. If no transaction found, respond: {"found": false}
+    const prompt = `Extract financial transaction details from this email. If the email contains a transaction alert, return ONLY valid JSON (no markdown):
+{"amount": number, "description": "...", "merchant": "...", "date": "YYYY-MM-DD", "type": "income"|"expense"}.
+If no financial transaction is present, return {"found": false}.
 
 Email content:
-${emailBody.substring(0, 2000)}`;
+${emailBody.substring(0, 8000)}`;
 
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
-    const jsonStr = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const parsed = JSON.parse(jsonStr);
+    const parsed = parseFirstJson<{
+      found?: boolean;
+      amount?: number;
+      description?: string;
+      merchant?: string;
+      date?: string;
+      type?: "income" | "expense";
+    }>(text);
+    if (!parsed) return inferTransactionFromText(emailBody);
     if (parsed.found === false) return null;
-    return parsed;
+    if (!parsed.amount || !parsed.date || !parsed.type) {
+      return inferTransactionFromText(emailBody);
+    }
+    return {
+      amount: Number(parsed.amount),
+      description: String(parsed.description || "").slice(0, 280),
+      merchant: String(parsed.merchant || "Transaction").slice(0, 120),
+      date: String(parsed.date),
+      type: parsed.type === "income" ? "income" : "expense",
+    };
   } catch {
-    return null;
+    return inferTransactionFromText(emailBody);
   }
 }
 
@@ -114,7 +213,7 @@ export async function generateFinancialInsights(input: {
   investments: { totalValue: number; gainPercent: number };
 }): Promise<FinancialInsightResult> {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = getModel();
     const prompt = `You are a personal finance coach. Analyze this monthly financial snapshot and return practical, concrete advice.
 
 Snapshot:
@@ -136,8 +235,9 @@ Return ONLY valid JSON, no markdown:
 
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
-    const jsonStr = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(jsonStr) as FinancialInsightResult;
+    const parsed = parseFirstJson<FinancialInsightResult>(text);
+    if (parsed?.summary) return parsed;
+    throw new Error("Invalid insight response");
   } catch {
     return {
       summary: "Your financial snapshot is available. Keep tracking spending and savings consistently.",
@@ -165,7 +265,7 @@ export async function generateWeeklyCfoBrief(input: {
   portfolioChangePercent: number;
 }): Promise<WeeklyCfoBriefResult> {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = getModel();
     const prompt = `You are a personal CFO assistant. Analyze this weekly snapshot and provide concise insights.
 
 Snapshot:
@@ -187,8 +287,9 @@ Return ONLY valid JSON:
 
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
-    const jsonStr = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(jsonStr) as WeeklyCfoBriefResult;
+    const parsed = parseFirstJson<WeeklyCfoBriefResult>(text);
+    if (parsed?.summary) return parsed;
+    throw new Error("Invalid weekly brief response");
   } catch {
     return {
       summary:
@@ -215,7 +316,7 @@ export async function generateActionRecommendations(input: {
   priceAlerts: Array<{ symbol: string; targetPrice: number; direction: string; status: string }>;
 }): Promise<RecommendationResult> {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = getModel();
     const prompt = `You are a senior personal finance + investing advisor for an Indian retail investor.
 Given this profile, return practical, low-jargon recommendations.
 
@@ -239,8 +340,9 @@ Return ONLY JSON:
 }`;
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
-    const jsonStr = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(jsonStr) as RecommendationResult;
+    const parsed = parseFirstJson<RecommendationResult>(text);
+    if (parsed?.summary) return parsed;
+    throw new Error("Invalid recommendations response");
   } catch {
     return {
       summary: "Your profile is stable, with room to improve diversification and spending discipline.",

@@ -15,7 +15,12 @@ export async function syncEmailConnection(connectionId: string) {
   );
 
   let synced = 0;
+  const categoryByName = new Map(
+    conn.user.categories.map((c) => [c.name.toLowerCase().trim(), c])
+  );
   for (const txn of transactions) {
+    if (!txn?.emailRef || !Number.isFinite(txn.amount) || txn.amount <= 0) continue;
+
     const existing = await prisma.transaction.findFirst({
       where: { userId: conn.userId, emailRef: txn.emailRef },
     });
@@ -30,6 +35,16 @@ export async function syncEmailConnection(connectionId: string) {
     const category = conn.user.categories.find(
       (c) => c.name === categorization.category
     );
+    const normalizedCategory =
+      categoryByName.get(String(categorization.category || "").toLowerCase().trim()) || category;
+
+    const safeTags = Array.from(
+      new Set(
+        [txn.type === "income" ? "email-credit" : "email-debit", "email-sync", ...(categorization.tags || [])]
+          .map((t) => String(t || "").trim())
+          .filter(Boolean)
+      )
+    ).slice(0, 10);
 
     await prisma.transaction.create({
       data: {
@@ -40,8 +55,8 @@ export async function syncEmailConnection(connectionId: string) {
         date: new Date(txn.date),
         source: "email",
         emailRef: txn.emailRef,
-        categoryId: category?.id,
-        tags: categorization.tags,
+        categoryId: normalizedCategory?.id,
+        tags: safeTags,
       },
     });
     synced++;

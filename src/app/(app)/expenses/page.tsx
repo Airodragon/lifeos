@@ -110,6 +110,8 @@ export default function ExpensesPage() {
   const [layerInsights, setLayerInsights] = useState<LayerInsightPayload | null>(null);
   const [budgets, setBudgets] = useState<BudgetRow[]>([]);
   const [importing, setImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importFileName, setImportFileName] = useState("");
   const [importForm, setImportForm] = useState({
     accountId: "",
     csvText: "",
@@ -279,23 +281,35 @@ export default function ExpensesPage() {
   };
 
   const handleImport = async () => {
-    if (!importForm.csvText.trim()) return;
+    if (!importFile && !importForm.csvText.trim()) return;
     setImporting(true);
     try {
-      const res = await fetch("/api/transactions/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(importForm),
-      });
+      const res = importFile
+        ? await (() => {
+            const fd = new FormData();
+            fd.set("file", importFile);
+            if (importForm.accountId) fd.set("accountId", importForm.accountId);
+            return fetch("/api/transactions/import", {
+              method: "POST",
+              body: fd,
+            });
+          })()
+        : await fetch("/api/transactions/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(importForm),
+          });
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || "Import failed");
         return;
       }
       toast.success(
-        `Imported ${data.imported} txn • matched ${data.matchedExisting} • skipped ${data.skipped}`
+        `Imported ${data.imported} txn • matched ${data.matchedExisting} • categorized ${data.categorized || 0} • skipped ${data.skipped}`
       );
       setImportForm({ accountId: "", csvText: "" });
+      setImportFile(null);
+      setImportFileName("");
       setShowImportModal(false);
       fetchData();
     } catch {
@@ -307,16 +321,24 @@ export default function ExpensesPage() {
 
   const handleImportFile = async (file: File | null) => {
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      toast.error("Please upload a CSV file");
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".csv") && !name.endsWith(".pdf")) {
+      toast.error("Please upload a CSV or PDF file");
       return;
     }
     try {
-      const text = await file.text();
-      setImportForm((p) => ({ ...p, csvText: text }));
-      toast.success("CSV loaded. Review and import.");
+      setImportFile(file);
+      setImportFileName(file.name);
+      if (name.endsWith(".csv")) {
+        const text = await file.text();
+        setImportForm((p) => ({ ...p, csvText: text }));
+        toast.success("CSV loaded. Review and import.");
+      } else {
+        setImportForm((p) => ({ ...p, csvText: "" }));
+        toast.success("PDF loaded. AI extraction will run on import.");
+      }
     } catch {
-      toast.error("Could not read CSV file");
+      toast.error("Could not read file");
     }
   };
 
@@ -558,7 +580,7 @@ export default function ExpensesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}>
           <Upload className="w-4 h-4 mr-1" />
-          Import Statement CSV
+          Import Statement CSV/PDF
         </Button>
         <Button variant="outline" size="sm" onClick={exportTransactionsCsv}>
           Export CSV
@@ -789,7 +811,7 @@ export default function ExpensesPage() {
       <Modal
         open={showImportModal}
         onClose={() => setShowImportModal(false)}
-        title="Import Bank Statement CSV"
+        title="Import Bank Statement"
       >
         <div className="space-y-4">
           <div className="space-y-1.5">
@@ -817,10 +839,10 @@ export default function ExpensesPage() {
             <label className="text-sm font-medium">CSV Content</label>
             <div className="flex flex-wrap gap-2">
               <label className="inline-flex items-center justify-center h-9 px-3 rounded-xl border border-input text-sm cursor-pointer hover:bg-muted">
-                Choose CSV File
+                Choose CSV/PDF File
                 <input
                   type="file"
-                  accept=".csv,text/csv"
+                  accept=".csv,text/csv,.pdf,application/pdf"
                   className="hidden"
                   onChange={(e) => handleImportFile(e.target.files?.[0] || null)}
                 />
@@ -829,7 +851,11 @@ export default function ExpensesPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setImportForm((p) => ({ ...p, csvText: SAMPLE_CSV }))}
+                onClick={() => {
+                  setImportFile(null);
+                  setImportFileName("");
+                  setImportForm((p) => ({ ...p, csvText: SAMPLE_CSV }));
+                }}
               >
                 Use Sample CSV
               </Button>
@@ -839,12 +865,14 @@ export default function ExpensesPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() =>
+                  onClick={() => {
+                    setImportFile(null);
+                    setImportFileName("");
                     setImportForm((p) => ({
                       ...p,
                       csvText: BANK_TEMPLATES[bank],
-                    }))
-                  }
+                    }));
+                  }}
                 >
                   {bank} Template
                 </Button>
@@ -853,25 +881,31 @@ export default function ExpensesPage() {
             <textarea
               rows={10}
               value={importForm.csvText}
-              onChange={(e) =>
+              onChange={(e) => {
+                setImportFile(null);
+                setImportFileName("");
                 setImportForm((p) => ({
                   ...p,
                   csvText: e.target.value,
-                }))
-              }
-              placeholder="Paste CSV with headers like Date, Description/Narration, Amount or Debit/Credit"
+                }));
+              }}
+              placeholder="Paste CSV with headers like Date, Description/Narration, Amount or Debit/Credit (optional when PDF is uploaded)"
               className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
+            {importFileName ? (
+              <p className="text-xs text-muted-foreground">
+                Selected file: <span className="font-medium">{importFileName}</span>
+              </p>
+            ) : null}
             <p className="text-xs text-muted-foreground">
-              Duplicate rows are auto-reconciled. Supported headers: Date, Description/Narration,
-              Amount or Debit/Credit.
+              Duplicate rows are auto-reconciled. CSV and PDF statements are supported.
             </p>
           </div>
 
           <Button
             onClick={handleImport}
             className="w-full"
-            disabled={importing || !importForm.csvText.trim()}
+            disabled={importing || (!importFile && !importForm.csvText.trim())}
           >
             {importing ? "Importing..." : "Import & Reconcile"}
           </Button>

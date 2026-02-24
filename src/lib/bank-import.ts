@@ -1,9 +1,14 @@
-type ParsedStatementTxn = {
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+export type ParsedStatementTxn = {
   date: Date;
   description: string;
   amount: number;
   type: "income" | "expense";
 };
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const importModel = process.env.GEMINI_IMPORT_MODEL || process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
@@ -60,6 +65,43 @@ function parseAmount(raw: string): number {
 
 function normalizeHeader(h: string) {
   return h.toLowerCase().replace(/\s+/g, "").replace(/[^a-z]/g, "");
+}
+
+function normalizeAiJson(text: string): string {
+  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const firstObj = cleaned.indexOf("[");
+  const firstJsonObj = cleaned.indexOf("{");
+  const start =
+    firstObj >= 0 && firstJsonObj >= 0 ? Math.min(firstObj, firstJsonObj) : Math.max(firstObj, firstJsonObj);
+  if (start < 0) return cleaned;
+  const endBracket = cleaned.lastIndexOf("]");
+  const endBrace = cleaned.lastIndexOf("}");
+  const end = Math.max(endBracket, endBrace);
+  if (end <= start) return cleaned.slice(start);
+  return cleaned.slice(start, end + 1);
+}
+
+function toParsedRows(rows: Array<{
+  date?: string;
+  description?: string;
+  amount?: number;
+  type?: string;
+}>): ParsedStatementTxn[] {
+  return rows
+    .map((row) => {
+      const date = parseFlexibleDate(String(row.date || ""));
+      const amount = Number(row.amount || 0);
+      const rawType = String(row.type || "").toLowerCase();
+      const type: "income" | "expense" = rawType === "income" ? "income" : "expense";
+      if (!date || !Number.isFinite(amount) || amount <= 0) return null;
+      return {
+        date,
+        description: String(row.description || "Imported transaction").slice(0, 300),
+        amount: Math.abs(amount),
+        type,
+      };
+    })
+    .filter((row): row is ParsedStatementTxn => Boolean(row));
 }
 
 export function parseBankStatementCsv(csvText: string): ParsedStatementTxn[] {
@@ -126,5 +168,37 @@ export function parseBankStatementCsv(csvText: string): ParsedStatementTxn[] {
     });
   }
   return out;
+}
+
+export async function parseBankStatementPdf(pdfBuffer: Buffer): Promise<ParsedStatementTxn[]> {
+  if (!pdfBuffer.length) return [];
+
+  try {
+    const model = genAI.getGenerativeModel({ model: importModel });
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: "application/pdf",
+          data: pdfBuffer.toString("base64"),
+        },
+      },
+      {
+        text:
+          'Extract bank statement transactions from this PDF and return ONLY valid JSON as an array with this schema: [{"date":"YYYY-MM-DD","description":"string","amount":123.45,"type":"income|expense"}]. Include debit/withdrawal/spent as expense, credit/deposit/received as income. Exclude summary rows, opening/closing balance rows, and non-transaction rows.',
+      },
+    ]);
+
+    const text = result.response.text().trim();
+    const json = normalizeAiJson(text);
+    const parsed = JSON.parse(json);
+    const rows = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.transactions)
+        ? parsed.transactions
+        : [];
+    return toParsedRows(rows);
+  } catch {
+    return [];
+  }
 }
 

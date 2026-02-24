@@ -75,17 +75,20 @@ export async function fetchTransactionEmails(
     "from:googlepay",
     "from:amazon",
     "from:flipkart",
+    "from:cred",
+    "from:airtel",
+    "from:jio",
   ];
   const keywordPatterns = [
-    "subject:(debited OR credited OR spent OR received OR transaction OR payment)",
-    "subject:(UPI OR IMPS OR NEFT OR RTGS OR card OR wallet)",
+    "subject:(debited OR credited OR spent OR received OR transaction OR payment OR successful OR failed)",
+    "subject:(UPI OR IMPS OR NEFT OR RTGS OR card OR wallet OR statement OR alert)",
   ];
 
   const query = `(${senderPatterns.join(" OR ")} OR ${keywordPatterns.join(" OR ")}) after:${afterDate}`;
 
   const messages: { id?: string | null }[] = [];
   let pageToken: string | undefined;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 5; i++) {
     const response = await gmail.users.messages.list({
       userId: "me",
       q: query,
@@ -106,10 +109,18 @@ export async function fetchTransactionEmails(
       format: "full",
     });
 
-    const body = extractBody(full.data as unknown as Record<string, unknown>);
-    if (!body) continue;
+    const message = full.data as unknown as Record<string, unknown>;
+    const payload = message.payload as Record<string, unknown> | undefined;
+    const headers = (payload?.headers as Array<{ name?: string; value?: string }> | undefined) || [];
+    const subject = headers.find((h) => h.name?.toLowerCase() === "subject")?.value || "";
+    const from = headers.find((h) => h.name?.toLowerCase() === "from")?.value || "";
+    const dateHeader = headers.find((h) => h.name?.toLowerCase() === "date")?.value || "";
+    const snippet = (message.snippet as string | undefined) || "";
+    const body = extractBody(message) || "";
+    const richContent = `Subject: ${subject}\nFrom: ${from}\nDate: ${dateHeader}\nSnippet: ${snippet}\nBody: ${body}`;
+    if (!richContent.trim()) continue;
 
-    const parsed = await parseEmailTransaction(body);
+    const parsed = await parseEmailTransaction(richContent);
     if (parsed) {
       transactions.push({
         ...parsed,

@@ -31,6 +31,10 @@ function todayWindow() {
   };
 }
 
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 export async function POST(req: Request) {
   try {
     const user = await requireUser();
@@ -41,7 +45,9 @@ export async function POST(req: Request) {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const { start, end } = todayWindow();
 
-    const [investments, budgets, monthExpenses, existingToday] = await Promise.all([
+    const trailing90Start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    const [investments, budgets, monthExpenses, trailingExpenses, existingToday] = await Promise.all([
       prisma.investment.findMany({ where: { userId: user.id, deletedAt: null } }),
       prisma.budget.findMany({
         where: { userId: user.id, month: now.getMonth() + 1, year: now.getFullYear() },
@@ -54,6 +60,15 @@ export async function POST(req: Request) {
           deletedAt: null,
           date: { gte: monthStart },
         },
+      }),
+      prisma.transaction.findMany({
+        where: {
+          userId: user.id,
+          type: "expense",
+          deletedAt: null,
+          date: { gte: trailing90Start },
+        },
+        include: { category: true },
       }),
       prisma.notification.findMany({
         where: { userId: user.id, createdAt: { gte: start, lte: end } },
@@ -116,6 +131,63 @@ export async function POST(req: Request) {
             message: `${(b.category?.name || "Budget")} is at ${usage.toFixed(0)}% usage this month.`,
             type: "budget_alert",
             data: JSON.stringify({ categoryId: b.categoryId, usage }),
+          });
+        }
+      }
+    }
+
+    // Expense anomaly: today's spend vs trailing daily average.
+    const todayExpenses = trailingExpenses.filter((txn) => txn.date >= start);
+    const todayTotal = todayExpenses.reduce((sum, txn) => sum + Number(txn.amount), 0);
+    const byDay = new Map<string, number>();
+    for (const txn of trailingExpenses) {
+      const key = startOfDay(txn.date).toISOString();
+      byDay.set(key, (byDay.get(key) || 0) + Number(txn.amount));
+    }
+    const dailyValues = Array.from(byDay.values());
+    const trailingDailyAvg =
+      dailyValues.length > 0
+        ? dailyValues.reduce((sum, v) => sum + v, 0) / dailyValues.length
+        : 0;
+    if (todayTotal > 0 && trailingDailyAvg > 0 && todayTotal >= trailingDailyAvg * 1.8) {
+      const title = "Unusual spending today";
+      if (!existingTitles.has(title)) {
+        createQueue.push({
+          title,
+          message: `Today's spend is ${todayTotal.toFixed(0)}, about ${(todayTotal / trailingDailyAvg).toFixed(1)}x your usual daily average.`,
+          type: "expense_alert",
+          data: JSON.stringify({ todayTotal, trailingDailyAvg }),
+        });
+      }
+    }
+
+    // Category spike alert: this month category spend vs previous 3-month baseline.
+    const currentMonthByCategory = new Map<string, { name: string; amount: number }>();
+    const baselineByCategory = new Map<string, number>();
+    const baselineWindowStart = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    for (const txn of trailingExpenses) {
+      const categoryName = txn.category?.name || "Other";
+      if (txn.date >= monthStart) {
+        const existing = currentMonthByCategory.get(categoryName) || { name: categoryName, amount: 0 };
+        existing.amount += Number(txn.amount);
+        currentMonthByCategory.set(categoryName, existing);
+      } else if (txn.date >= baselineWindowStart) {
+        baselineByCategory.set(categoryName, (baselineByCategory.get(categoryName) || 0) + Number(txn.amount));
+      }
+    }
+    for (const [categoryName, current] of currentMonthByCategory.entries()) {
+      const baselineTotal = baselineByCategory.get(categoryName) || 0;
+      const baselineMonthly = baselineTotal / 3;
+      if (baselineMonthly <= 0) continue;
+      const ratio = current.amount / baselineMonthly;
+      if (ratio >= 1.4 && current.amount - baselineMonthly >= 1000) {
+        const title = `Spike alert: ${categoryName}`;
+        if (!existingTitles.has(title)) {
+          createQueue.push({
+            title,
+            message: `${categoryName} spending is up ${(ratio * 100 - 100).toFixed(0)}% vs your recent monthly average.`,
+            type: "expense_alert",
+            data: JSON.stringify({ categoryName, current: current.amount, baselineMonthly }),
           });
         }
       }
