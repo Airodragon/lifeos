@@ -22,7 +22,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { formatDate, toDecimal } from "@/lib/utils";
+import { formatDate, nowDateInputValueIST, toDateInputValueIST, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
@@ -89,7 +89,7 @@ export default function FixedDepositsPage() {
     principal: "",
     interestRate: "",
     compounding: "quarterly",
-    startDate: new Date().toISOString().split("T")[0],
+    startDate: nowDateInputValueIST(),
     maturityDate: "",
     isAutoRenew: false,
     notes: "",
@@ -115,7 +115,7 @@ export default function FixedDepositsPage() {
     const d = new Date(startDate);
     d.setFullYear(d.getFullYear() + (parseInt(years) || 0));
     d.setMonth(d.getMonth() + (parseInt(months) || 0));
-    return d.toISOString().split("T")[0];
+    return toDateInputValueIST(d);
   };
 
   const handleTenureChange = (yrs: string, mos: string) => {
@@ -145,7 +145,7 @@ export default function FixedDepositsPage() {
       }),
     });
     setShowAdd(false);
-    setForm({ bankName: "", accountNumber: "", principal: "", interestRate: "", compounding: "quarterly", startDate: new Date().toISOString().split("T")[0], maturityDate: "", isAutoRenew: false, notes: "" });
+    setForm({ bankName: "", accountNumber: "", principal: "", interestRate: "", compounding: "quarterly", startDate: nowDateInputValueIST(), maturityDate: "", isAutoRenew: false, notes: "" });
     setTenureYears("");
     setTenureMonths("");
     fetchFDs();

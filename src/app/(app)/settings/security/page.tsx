@@ -102,7 +102,13 @@ export default function SecuritySettingsPage() {
                         <div>
                           <p className="text-xs font-medium">Passkey {idx + 1}</p>
                           <p className="text-[10px] text-muted-foreground">
-                            Added {new Date(pk.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            Added{" "}
+                            {new Date(pk.createdAt).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              timeZone: "Asia/Kolkata",
+                            })}
                           </p>
                         </div>
                       </div>

@@ -24,7 +24,7 @@ import { LineChart } from "@/components/charts/line-chart";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { toDecimal } from "@/lib/utils";
+import { formatDate, formatDateTime, nowDateInputValueIST, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { markDataSynced } from "@/lib/sync-status";
 import { toast } from "sonner";
@@ -132,7 +132,7 @@ export default function InvestmentsPage() {
     fees: "",
     taxes: "",
     note: "",
-    date: new Date().toISOString().slice(0, 10),
+    date: nowDateInputValueIST(),
   });
   const [form, setForm] = useState({
     symbol: "",
@@ -374,7 +374,7 @@ export default function InvestmentsPage() {
       fees: "",
       taxes: "",
       note: "",
-      date: new Date().toISOString().slice(0, 10),
+      date: nowDateInputValueIST(),
     });
     await openLedger(showLedger);
     await fetchInvestments();
@@ -586,7 +586,7 @@ export default function InvestmentsPage() {
           <CardContent className="p-2.5 text-xs text-warning">
             {marketSyncError}{" "}
             {lastPriceSyncAt
-              ? `Last successful sync at ${new Date(lastPriceSyncAt).toLocaleTimeString("en-IN")}`
+              ? `Last successful sync at ${formatDateTime(lastPriceSyncAt)}`
               : ""}
           </CardContent>
         </Card>
@@ -758,10 +758,7 @@ export default function InvestmentsPage() {
                       </span>
                       <span>
                         {inv.lastUpdated
-                          ? `As of ${new Date(inv.lastUpdated).toLocaleDateString("en-IN", {
-                              day: "numeric",
-                              month: "short",
-                            })}`
+                          ? `As of ${formatDate(inv.lastUpdated)}`
                           : "As of —"}
                       </span>
                       <button
@@ -1117,7 +1114,7 @@ export default function InvestmentsPage() {
                   <div className="min-w-0">
                     <p className="text-xs font-medium uppercase">{t.type}</p>
                     <p className="text-[10px] text-muted-foreground">
-                      {new Date(t.date).toLocaleDateString("en-IN")} · {formatCurrency(toDecimal(t.amount))}
+                      {formatDate(t.date)} · {formatCurrency(toDecimal(t.amount))}
                     </p>
                     {t.note && <p className="text-[10px] text-muted-foreground truncate">{t.note}</p>}
                   </div>

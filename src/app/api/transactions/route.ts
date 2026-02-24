@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { istDayEnd, istDayStart, parseDateInputAsIST } from "@/lib/utils";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -34,8 +35,8 @@ export async function GET(req: Request) {
     if (categoryId) where.categoryId = categoryId;
     if (startDate || endDate) {
       where.date = {
-        ...(startDate && { gte: new Date(startDate) }),
-        ...(endDate && { lte: new Date(endDate) }),
+        ...(startDate && { gte: istDayStart(startDate) }),
+        ...(endDate && { lte: istDayEnd(endDate) }),
       };
     }
     if (q) {
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
           amount: data.amount,
           type: data.type,
           description: data.description,
-          date: new Date(data.date),
+          date: parseDateInputAsIST(data.date),
           categoryId: data.categoryId,
           accountId: data.accountId,
           tags: data.tags || [],

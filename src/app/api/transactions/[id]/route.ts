@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { parseDateInputAsIST } from "@/lib/utils";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -91,7 +92,7 @@ export async function PUT(
           amount: nextAmount,
           type: nextType,
           description: data.description,
-          date: data.date ? new Date(data.date) : undefined,
+          date: data.date ? parseDateInputAsIST(data.date) : undefined,
           categoryId:
             data.categoryId === undefined ? existing.categoryId : data.categoryId,
           accountId: nextAccountId,

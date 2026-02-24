@@ -5,6 +5,7 @@ import { Sparkles, ShieldAlert, TrendingUp, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDateTime } from "@/lib/utils";
 
 interface RecommendationResponse {
   summary: string;
@@ -171,7 +172,7 @@ export default function RecommendationsPage() {
               <div key={row.id} className="rounded-lg border border-border/40 p-2">
                 <p className="text-foreground">{row.summary}</p>
                 <p className="mt-1 text-[11px]">
-                  {new Date(row.createdAt).toLocaleString("en-IN")}
+                  {formatDateTime(row.createdAt)}
                 </p>
               </div>
             ))

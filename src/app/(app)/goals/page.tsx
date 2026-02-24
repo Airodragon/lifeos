@@ -212,7 +212,11 @@ export default function GoalsPage() {
                           {goal.deadline && (
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
-                              {new Date(goal.deadline).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}
+                              {new Date(goal.deadline).toLocaleDateString("en-IN", {
+                                month: "short",
+                                year: "numeric",
+                                timeZone: "Asia/Kolkata",
+                              })}
                             </span>
                           )}
                           {monthlyNeeded > 0 && (

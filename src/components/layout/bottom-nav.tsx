@@ -52,7 +52,7 @@ export function BottomNav() {
   return (
     <>
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/50 bg-card/90 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-        <div className="flex items-end justify-around h-16 max-w-2xl mx-auto px-2">
+        <div className="flex items-end justify-around h-16 w-full max-w-2xl mx-auto px-2 overflow-hidden">
           {navItems.map((item) => {
             if (item.isAdd) {
               return (
@@ -79,7 +79,7 @@ export function BottomNav() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 px-3 py-1.5 relative min-w-[52px]",
+                  "flex-1 flex flex-col items-center gap-0.5 px-2 py-1.5 relative min-w-0",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >

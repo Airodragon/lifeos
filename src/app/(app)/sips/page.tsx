@@ -24,7 +24,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { toDecimal } from "@/lib/utils";
+import { formatDateShort, nowDateInputValueIST, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
@@ -66,7 +66,7 @@ export default function SIPsPage() {
     symbol: "",
     amount: "",
     sipDate: "1",
-    startDate: new Date().toISOString().split("T")[0],
+    startDate: nowDateInputValueIST(),
     expectedReturn: "12",
     totalInvested: "",
     currentValue: "",
@@ -129,7 +129,7 @@ export default function SIPsPage() {
       }),
     });
     setShowAdd(false);
-    setForm({ name: "", fundName: "", symbol: "", amount: "", sipDate: "1", startDate: new Date().toISOString().split("T")[0], expectedReturn: "12", totalInvested: "", currentValue: "" });
+    setForm({ name: "", fundName: "", symbol: "", amount: "", sipDate: "1", startDate: nowDateInputValueIST(), expectedReturn: "12", totalInvested: "", currentValue: "" });
     fetchSips();
     toast.success("SIP added");
   };
@@ -390,7 +390,7 @@ export default function SIPsPage() {
                           </span>
                           <span>
                             {sip.lastUpdated
-                              ? `Valuation as of ${new Date(sip.lastUpdated).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
+                              ? `Valuation as of ${formatDateShort(sip.lastUpdated)}`
                               : `${toDecimal(sip.expectedReturn)}% expected`}
                           </span>
                         </div>

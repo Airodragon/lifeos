@@ -59,7 +59,10 @@
   --warning: #d97706;
 }
 
-* {
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
   border-color: var(--border);
 }
 
@@ -71,14 +74,25 @@ body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+  width: 100%;
+  overflow-x: clip;
 }
 
 html {
   scroll-behavior: smooth;
+  width: 100%;
+  overflow-x: clip;
 }
 
 input, textarea, select {
   font-size: 16px !important;
+}
+
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
 }
 
 ::-webkit-scrollbar {

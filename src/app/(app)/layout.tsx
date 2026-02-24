@@ -15,7 +15,7 @@ export default async function AppLayout({
 
   return (
     <div
-      className="min-h-svh bg-background max-w-2xl mx-auto relative"
+      className="min-h-svh bg-background max-w-2xl mx-auto relative overflow-x-hidden"
       style={{
         paddingLeft: "env(safe-area-inset-left)",
         paddingRight: "env(safe-area-inset-right)",

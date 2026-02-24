@@ -1,6 +1,9 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+export const IST_TIMEZONE = "Asia/Kolkata";
+const IST_OFFSET_MINUTES = 330;
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -65,6 +68,7 @@ export function formatDate(date: Date | string): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: IST_TIMEZONE,
   });
 }
 
@@ -72,6 +76,7 @@ export function formatDateShort(date: Date | string): string {
   return new Date(date).toLocaleDateString("en-IN", {
     day: "numeric",
     month: "short",
+    timeZone: IST_TIMEZONE,
   });
 }
 
@@ -83,11 +88,12 @@ export function formatDateTime(date: Date | string): string {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
+    timeZone: IST_TIMEZONE,
   });
 }
 
 export function getMonthName(month: number): string {
-  return new Date(2024, month - 1).toLocaleString("en", { month: "long" });
+  return new Date(2024, month - 1).toLocaleString("en", { month: "long", timeZone: IST_TIMEZONE });
 }
 
 export function getRelativeTime(date: Date | string): string {
@@ -116,4 +122,102 @@ export function toDecimal(value: unknown): number {
     return (value as { toNumber(): number }).toNumber();
   }
   return 0;
+}
+
+export function toDateInputValueIST(date: Date | string): string {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: IST_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const year = parts.find((p) => p.type === "year")?.value ?? "1970";
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+}
+
+export function toDateTimeInputValueIST(date: Date | string): string {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: IST_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const year = parts.find((p) => p.type === "year")?.value ?? "1970";
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+export function nowDateInputValueIST(): string {
+  return toDateInputValueIST(new Date());
+}
+
+export function nowDateTimeInputValueIST(): string {
+  return toDateTimeInputValueIST(new Date());
+}
+
+function parseYmd(value: string) {
+  const [y, m, d] = value.split("-").map((v) => parseInt(v, 10));
+  if (!y || !m || !d) return null;
+  return { y, m, d };
+}
+
+export function parseDateInputAsIST(value: string): Date {
+  const raw = String(value || "").trim();
+  if (!raw) return new Date(NaN);
+  if (/(Z|[+-]\d{2}:\d{2})$/i.test(raw)) return new Date(raw);
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const ymd = parseYmd(raw);
+    if (!ymd) return new Date(raw);
+    const utcMs = Date.UTC(ymd.y, ymd.m - 1, ymd.d, 0, 0, 0, 0) - IST_OFFSET_MINUTES * 60000;
+    return new Date(utcMs);
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(raw)) {
+    const [d, t] = raw.split("T");
+    const ymd = parseYmd(d);
+    if (!ymd) return new Date(raw);
+    const [hh, mm, ss = "0"] = t.split(":");
+    const utcMs =
+      Date.UTC(
+        ymd.y,
+        ymd.m - 1,
+        ymd.d,
+        parseInt(hh || "0", 10),
+        parseInt(mm || "0", 10),
+        parseInt(ss || "0", 10),
+        0
+      ) -
+      IST_OFFSET_MINUTES * 60000;
+    return new Date(utcMs);
+  }
+
+  return new Date(raw);
+}
+
+export function istDayStart(value: string): Date {
+  const ymd = parseYmd(value);
+  if (!ymd) return new Date(value);
+  const utcMs = Date.UTC(ymd.y, ymd.m - 1, ymd.d, 0, 0, 0, 0) - IST_OFFSET_MINUTES * 60000;
+  return new Date(utcMs);
+}
+
+export function istDayEnd(value: string): Date {
+  const ymd = parseYmd(value);
+  if (!ymd) return new Date(value);
+  const utcMs =
+    Date.UTC(ymd.y, ymd.m - 1, ymd.d, 23, 59, 59, 999) - IST_OFFSET_MINUTES * 60000;
+  return new Date(utcMs);
 }

@@ -23,7 +23,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { formatDate, toDecimal } from "@/lib/utils";
+import { formatDate, nowDateInputValueIST, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
@@ -62,7 +62,7 @@ export default function CommitteesPage() {
     duration: "15",
     totalMembers: "15",
     paymentDay: "1",
-    startDate: new Date().toISOString().split("T")[0],
+    startDate: nowDateInputValueIST(),
     notes: "",
   });
 
@@ -93,7 +93,7 @@ export default function CommitteesPage() {
       }),
     });
     setShowAdd(false);
-    setForm({ name: "", payoutAmount: "", duration: "15", totalMembers: "15", paymentDay: "1", startDate: new Date().toISOString().split("T")[0], notes: "" });
+    setForm({ name: "", payoutAmount: "", duration: "15", totalMembers: "15", paymentDay: "1", startDate: nowDateInputValueIST(), notes: "" });
     fetchCommittees();
     toast.success("Committee added");
   };
@@ -349,7 +349,11 @@ export default function CommitteesPage() {
                                 {committee.payments.map((p) => {
                                   const monthDate = new Date(monthStart);
                                   monthDate.setMonth(monthDate.getMonth() + p.month - 1);
-                                  const monthName = monthDate.toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
+                                  const monthName = monthDate.toLocaleDateString("en-IN", {
+                                    month: "short",
+                                    year: "2-digit",
+                                    timeZone: "Asia/Kolkata",
+                                  });
 
                                   return (
                                     <div

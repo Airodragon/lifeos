@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, ArrowDown, ArrowUp, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { nowDateTimeInputValueIST } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface Account {
@@ -18,13 +19,6 @@ interface Category {
   id: string;
   name: string;
   type: string;
-}
-
-function localDateTimeValue(d = new Date()) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
 }
 
 interface QuickAddSheetProps {
@@ -40,7 +34,7 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
   const [description, setDescription] = useState("");
   const [accountId, setAccountId] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [date, setDate] = useState(localDateTimeValue());
+  const [date, setDate] = useState(nowDateTimeInputValueIST());
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
@@ -115,7 +109,7 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
       setDescription("");
       setAccountId("");
       setCategoryId("");
-      setDate(localDateTimeValue());
+      setDate(nowDateTimeInputValueIST());
       localStorage.setItem(
         "lifeos-expense-form-defaults",
         JSON.stringify({ type, accountId, categoryId })

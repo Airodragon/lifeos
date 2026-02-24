@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useFormat } from "@/hooks/use-format";
 import { BarChart } from "@/components/charts/bar-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
+import { formatDate } from "@/lib/utils";
 
 interface TaxTxn {
   investmentId: string;
@@ -183,7 +184,7 @@ export default function TaxCenterPage() {
                   <p className="font-medium">{row.symbol}</p>
                   <span className="text-destructive">{formatCurrency(row.gain, "INR", true)}</span>
                 </div>
-                <p className="text-muted-foreground">{new Date(row.date).toLocaleDateString("en-IN")}</p>
+                <p className="text-muted-foreground">{formatDate(row.date)}</p>
               </div>
             ))
           )}

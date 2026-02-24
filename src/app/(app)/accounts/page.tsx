@@ -22,7 +22,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { toDecimal } from "@/lib/utils";
+import { nowDateInputValueIST, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
 
@@ -92,7 +92,7 @@ export default function AccountsPage() {
   const [payForm, setPayForm] = useState({
     fromAccountId: "",
     amount: "",
-    date: new Date().toISOString().slice(0, 10),
+    date: nowDateInputValueIST(),
     note: "",
   });
 
@@ -184,7 +184,7 @@ export default function AccountsPage() {
     setPayForm({
       fromAccountId: "",
       amount: "",
-      date: new Date().toISOString().slice(0, 10),
+      date: nowDateInputValueIST(),
       note: "",
     });
     fetchAccounts();

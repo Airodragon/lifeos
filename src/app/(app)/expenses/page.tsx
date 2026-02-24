@@ -21,7 +21,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { BarChart } from "@/components/charts/bar-chart";
-import { formatDateTime, toDecimal } from "@/lib/utils";
+import {
+  formatDateTime,
+  nowDateTimeInputValueIST,
+  toDateInputValueIST,
+  toDateTimeInputValueIST,
+  toDecimal,
+} from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { markDataSynced } from "@/lib/sync-status";
 import { toast } from "sonner";
@@ -85,13 +91,6 @@ const BANK_TEMPLATES: Record<string, string> = {
 };
 const CHART_COLORS = ["#3b82f6", "#22c55e", "#f97316", "#8b5cf6", "#14b8a6", "#ec4899"];
 
-function localDateTimeValue(d = new Date()) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
-}
-
 export default function ExpensesPage() {
   const { fc: formatCurrency } = useFormat();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -121,7 +120,7 @@ export default function ExpensesPage() {
     description: "",
     categoryId: "",
     accountId: "",
-    date: localDateTimeValue(),
+    date: nowDateTimeInputValueIST(),
   });
   const [editFormData, setEditFormData] = useState({
     id: "",
@@ -130,7 +129,7 @@ export default function ExpensesPage() {
     description: "",
     categoryId: "",
     accountId: "",
-    date: localDateTimeValue(),
+    date: nowDateTimeInputValueIST(),
   });
   const quickCategories = ["Food", "Fuel", "Bills", "Transfer", "Groceries", "Health"];
 
@@ -231,7 +230,7 @@ export default function ExpensesPage() {
       description: "",
       categoryId: "",
       accountId: "",
-      date: localDateTimeValue(),
+      date: nowDateTimeInputValueIST(),
     });
     fetchData();
   };
@@ -250,7 +249,7 @@ export default function ExpensesPage() {
       description: txn.description || "",
       categoryId: txn.category?.id || "",
       accountId: txn.account?.id || "",
-      date: new Date(txn.date).toISOString().slice(0, 16),
+      date: toDateTimeInputValueIST(txn.date),
     });
     setShowEditModal(true);
   };
@@ -393,7 +392,7 @@ export default function ExpensesPage() {
     chartTxns
       .filter((t) => t.type === "expense")
       .reduce((acc, txn) => {
-        const dayKey = new Date(txn.date).toISOString().slice(0, 10);
+        const dayKey = toDateInputValueIST(txn.date);
         acc.set(dayKey, (acc.get(dayKey) || 0) + toDecimal(txn.amount));
         return acc;
       }, new Map<string, number>())
@@ -402,7 +401,11 @@ export default function ExpensesPage() {
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-10)
     .map(([day, value]) => ({
-      day: new Date(day).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+      day: new Date(day).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        timeZone: "Asia/Kolkata",
+      }),
       Spend: value,
     }));
 
@@ -537,7 +540,7 @@ export default function ExpensesPage() {
           className="w-full h-10 pl-9 pr-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Input
           label="From"
           type="date"
