@@ -23,6 +23,7 @@ model User {
   transactions     Transaction[]
   categories       Category[]
   investments      Investment[]
+  investmentTransactions InvestmentTransaction[]
   offlineAssets    OfflineAsset[]
   committees       Committee[]
   goals            Goal[]
@@ -124,10 +125,32 @@ model Investment {
   lastUpdated  DateTime?
   createdAt    DateTime  @default(now())
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dividends Dividend[]
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dividends    Dividend[]
+  transactions InvestmentTransaction[]
 
   @@index([userId])
+}
+
+model InvestmentTransaction {
+  id           String   @id @default(cuid())
+  userId       String
+  investmentId String
+  type         String   // buy, sell, sip, dividend, fee
+  quantity     Decimal? @db.Decimal(15, 6)
+  price        Decimal? @db.Decimal(15, 4)
+  amount       Decimal  @db.Decimal(15, 2)
+  fees         Decimal? @db.Decimal(15, 2)
+  taxes        Decimal? @db.Decimal(15, 2)
+  note         String?
+  date         DateTime
+  createdAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([investmentId, date])
 }
 
 model Dividend {
