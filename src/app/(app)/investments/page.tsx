@@ -4,18 +4,23 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   TrendingUp,
-  TrendingDown,
   Plus,
   RefreshCw,
   Search,
   ClipboardList,
   Trash2,
+  Activity,
+  Wallet,
+  CandlestickChart,
+  ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { DonutChart } from "@/components/charts/donut-chart";
+import { BarChart } from "@/components/charts/bar-chart";
+import { LineChart } from "@/components/charts/line-chart";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +51,42 @@ interface InvestmentTxn {
   date: string;
 }
 
+interface InvestmentSummary {
+  invested: number;
+  withdrawn: number;
+  dividends: number;
+  fees: number;
+}
+
+interface LayerInsights {
+  concentration: Array<{
+    symbol: string;
+    weight: number;
+    riskLevel: "low" | "medium" | "high";
+  }>;
+}
+
+interface InvestmentAnalytics {
+  cashflowSeries: Array<{
+    period: string;
+    invested: number;
+    withdrawn: number;
+    fees: number;
+    net: number;
+  }>;
+  typeBreakdown: Array<{
+    name: string;
+    value: number;
+    color: string;
+  }>;
+  totals: {
+    invested: number;
+    withdrawn: number;
+    fees: number;
+    net: number;
+  };
+}
+
 const TYPE_COLORS: Record<string, string> = {
   stock: "#3b82f6",
   etf: "#8b5cf6",
@@ -68,6 +109,18 @@ export default function InvestmentsPage() {
   const [showLedger, setShowLedger] = useState<Investment | null>(null);
   const [ledger, setLedger] = useState<InvestmentTxn[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [activeView, setActiveView] = useState<"holdings" | "performance" | "cashflows" | "insights">("holdings");
+  const [chartRange, setChartRange] = useState<"7d" | "30d" | "3m" | "1y">("30d");
+  const [sortBy, setSortBy] = useState<"value" | "gain" | "weight" | "name">("value");
+  const [summary, setSummary] = useState<InvestmentSummary>({
+    invested: 0,
+    withdrawn: 0,
+    dividends: 0,
+    fees: 0,
+  });
+  const [layerInsights, setLayerInsights] = useState<LayerInsights | null>(null);
+  const [analytics, setAnalytics] = useState<InvestmentAnalytics | null>(null);
+  const [dayPnlEstimate, setDayPnlEstimate] = useState(0);
   const [txnForm, setTxnForm] = useState({
     type: "buy" as InvestmentTxn["type"],
     quantity: "",
@@ -91,6 +144,26 @@ export default function InvestmentsPage() {
     const data = await res.json();
     setInvestments(data || []);
     setLoading(false);
+    try {
+      const snapshots = JSON.parse(localStorage.getItem("lifeos-investment-price-snapshot") || "{}") as Record<string, number>;
+      let dayPnl = 0;
+      for (const inv of data || []) {
+        const current = toDecimal(inv.currentPrice);
+        const old = snapshots[inv.id];
+        if (current > 0 && typeof old === "number") {
+          dayPnl += (current - old) * toDecimal(inv.quantity);
+        }
+      }
+      setDayPnlEstimate(dayPnl);
+      const nextSnapshots: Record<string, number> = {};
+      for (const inv of data || []) {
+        const current = toDecimal(inv.currentPrice);
+        if (current > 0) nextSnapshots[inv.id] = current;
+      }
+      localStorage.setItem("lifeos-investment-price-snapshot", JSON.stringify(nextSnapshots));
+    } catch {
+      // ignore local snapshot failures
+    }
     return data || [];
   };
 
@@ -127,6 +200,12 @@ export default function InvestmentsPage() {
     fetchInvestments().then((data) => {
       if (data?.length) autoRefreshPrices(data);
     });
+    fetch("/api/insights/layer")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d?.error) setLayerInsights(d);
+      })
+      .catch(() => {});
     const timer = setInterval(async () => {
       const data = await fetchInvestments();
       if (data?.length) await autoRefreshPrices(data);
@@ -134,6 +213,15 @@ export default function InvestmentsPage() {
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    fetch(`/api/investments/analytics?range=${chartRange}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d?.error) setAnalytics(d);
+      })
+      .catch(() => {});
+  }, [chartRange, investments.length]);
 
   const handleSearch = async (q: string) => {
     setSearchQuery(q);
@@ -185,15 +273,33 @@ export default function InvestmentsPage() {
     const res = await fetch(`/api/investments/${inv.id}/transactions`);
     const data = await res.json();
     setLedger(data || []);
+    const invested = (data || [])
+      .filter((t: InvestmentTxn) => t.type === "buy" || t.type === "sip")
+      .reduce((sum: number, t: InvestmentTxn) => sum + toDecimal(t.amount), 0);
+    const withdrawn = (data || [])
+      .filter((t: InvestmentTxn) => t.type === "sell")
+      .reduce((sum: number, t: InvestmentTxn) => sum + toDecimal(t.amount), 0);
+    const dividends = (data || [])
+      .filter((t: InvestmentTxn) => t.type === "dividend")
+      .reduce((sum: number, t: InvestmentTxn) => sum + toDecimal(t.amount), 0);
+    const fees = (data || [])
+      .filter((t: InvestmentTxn) => t.type === "fee")
+      .reduce((sum: number, t: InvestmentTxn) => sum + toDecimal(t.amount), 0);
+    setSummary({ invested, withdrawn, dividends, fees });
     setLedgerLoading(false);
   };
 
   const addLedgerTxn = async () => {
     if (!showLedger) return;
-    if (!txnForm.amount) return;
+    const amountToUse =
+      txnForm.amount ||
+      (txnForm.quantity && txnForm.price
+        ? (parseFloat(txnForm.quantity) * parseFloat(txnForm.price)).toString()
+        : "");
+    if (!amountToUse) return;
     const payload: Record<string, unknown> = {
       type: txnForm.type,
-      amount: parseFloat(txnForm.amount),
+      amount: parseFloat(amountToUse),
       date: txnForm.date,
       note: txnForm.note || undefined,
       fees: txnForm.fees ? parseFloat(txnForm.fees) : undefined,
@@ -326,6 +432,47 @@ export default function InvestmentsPage() {
   };
 
   const xirr = calcXirr();
+  const sortedPortfolio = [...portfolio].sort((a, b) => {
+    if (sortBy === "name") return a.name.localeCompare(b.name);
+    if (sortBy === "gain") return b.gainPercent - a.gainPercent;
+    if (sortBy === "weight") return totalValue > 0 ? b.value / totalValue - a.value / totalValue : 0;
+    return b.value - a.value;
+  });
+  const holdingCompareChart = sortedPortfolio.slice(0, 8).map((item) => ({
+    symbol: item.symbol,
+    Value: item.value,
+    Invested: item.invested,
+  }));
+  const gainTrendChart = sortedPortfolio.slice(0, 8).map((item) => ({
+    symbol: item.symbol,
+    GainPercent: item.gainPercent,
+  }));
+  const byType = sortedPortfolio.reduce(
+    (acc, item) => {
+      const prev = acc[item.type] || { value: 0 };
+      acc[item.type] = { value: prev.value + item.value };
+      return acc;
+    },
+    {} as Record<string, { value: number }>
+  );
+  const typeAllocationChart = Object.entries(byType).map(([type, value]) => ({
+    name: type.replace("_", " "),
+    value: value.value,
+    color: TYPE_COLORS[type] || "#6b7280",
+  }));
+  const cashflowRangeChart = (analytics?.cashflowSeries || []).map((row) => {
+    const parts = row.period.split("-");
+    const label =
+      parts.length === 3
+        ? `${parts[2]}/${parts[1]}`
+        : `${parts[1]}/${parts[0].slice(2)}`;
+    return {
+      period: label,
+      Invested: row.invested,
+      Withdrawn: row.withdrawn,
+      Net: row.net,
+    };
+  });
 
   return (
     <div className="p-4 space-y-4">
@@ -344,6 +491,47 @@ export default function InvestmentsPage() {
             <Plus className="w-4 h-4 mr-1" /> Add
           </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-1 rounded-xl bg-muted p-1 text-xs">
+        {(["holdings", "performance", "cashflows", "insights"] as const).map((view) => (
+          <button
+            key={view}
+            type="button"
+            onClick={() => setActiveView(view)}
+            className={`rounded-lg px-2 py-1.5 capitalize ${
+              activeView === view ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+            }`}
+          >
+            {view}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="grid grid-cols-4 gap-1 rounded-xl bg-muted p-1 text-xs">
+          {(["7d", "30d", "3m", "1y"] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setChartRange(r)}
+              className={`rounded-lg px-2 py-1.5 uppercase ${
+                chartRange === r ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as "value" | "gain" | "weight" | "name")}
+          className="h-8 rounded-lg border border-input bg-background px-2 text-xs"
+        >
+          <option value="value">Sort: Value</option>
+          <option value="gain">Sort: Gain</option>
+          <option value="weight">Sort: Weight</option>
+          <option value="name">Sort: Name</option>
+        </select>
       </div>
 
       {investments.length === 0 ? (
@@ -379,6 +567,24 @@ export default function InvestmentsPage() {
                   </p>
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="rounded-xl border border-border/50 p-2">
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Activity className="w-3 h-3" />
+                    1D est P&L
+                  </p>
+                  <p className={`text-xs font-semibold ${dayPnlEstimate >= 0 ? "text-success" : "text-destructive"}`}>
+                    {formatCurrency(dayPnlEstimate)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 p-2">
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Wallet className="w-3 h-3" />
+                    Total Invested
+                  </p>
+                  <p className="text-xs font-semibold">{formatCurrency(totalInvested)}</p>
+                </div>
+              </div>
               {allocationData.length > 0 && (
                 <DonutChart
                   data={allocationData}
@@ -390,7 +596,8 @@ export default function InvestmentsPage() {
           </Card>
 
           <div className="space-y-2">
-            {portfolio.map((inv) => (
+            {activeView === "holdings" &&
+              sortedPortfolio.map((inv) => (
               <motion.div
                 key={inv.id}
                 initial={{ opacity: 0, y: 8 }}
@@ -429,6 +636,14 @@ export default function InvestmentsPage() {
                       <span>Qty: {inv.qty}</span>
                       <span>Avg: {formatCurrency(inv.avg)}</span>
                       <span>LTP: {formatCurrency(inv.current)}</span>
+                      <span className={inv.lastUpdated ? "" : "text-warning"}>
+                        {inv.lastUpdated
+                          ? `${Math.max(
+                              0,
+                              Math.round((Date.now() - new Date(inv.lastUpdated).getTime()) / 60000)
+                            )}m sync`
+                          : "sync pending"}
+                      </span>
                       <span>
                         {inv.lastUpdated
                           ? `As of ${new Date(inv.lastUpdated).toLocaleDateString("en-IN", {
@@ -454,6 +669,132 @@ export default function InvestmentsPage() {
                 </Card>
               </motion.div>
             ))}
+            {activeView === "performance" && (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm flex items-center gap-1.5">
+                      <CandlestickChart className="w-4 h-4" />
+                      Value vs Invested (Top Holdings)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <BarChart
+                      data={holdingCompareChart}
+                      xAxisKey="symbol"
+                      bars={[
+                        { dataKey: "Invested", color: "#8b5cf6", name: "Invested" },
+                        { dataKey: "Value", color: "#3b82f6", name: "Current Value" },
+                      ]}
+                      height={220}
+                    />
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Gain % by Holding</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <LineChart
+                      data={gainTrendChart}
+                      dataKey="GainPercent"
+                      xAxisKey="symbol"
+                      color="#22c55e"
+                      height={170}
+                    />
+                  </CardContent>
+                </Card>
+              </>
+            )}
+            {activeView === "cashflows" && (
+              <>
+                <Card>
+                  <CardContent className="p-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-xl border border-border/50 p-2">
+                      <p className="text-muted-foreground">Invested ({chartRange.toUpperCase()})</p>
+                      <p className="font-semibold">{formatCurrency(analytics?.totals.invested ?? summary.invested)}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/50 p-2">
+                      <p className="text-muted-foreground">Withdrawn ({chartRange.toUpperCase()})</p>
+                      <p className="font-semibold">{formatCurrency(analytics?.totals.withdrawn ?? summary.withdrawn)}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/50 p-2">
+                      <p className="text-muted-foreground">Dividends</p>
+                      <p className="font-semibold">{formatCurrency(summary.dividends)}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/50 p-2">
+                      <p className="text-muted-foreground">Fees ({chartRange.toUpperCase()})</p>
+                      <p className="font-semibold">{formatCurrency(analytics?.totals.fees ?? summary.fees)}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+                {cashflowRangeChart.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Cashflow Trend ({chartRange.toUpperCase()})</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <BarChart
+                        data={cashflowRangeChart}
+                        xAxisKey="period"
+                        bars={[
+                          { dataKey: "Invested", color: "#3b82f6", name: "Invested" },
+                          { dataKey: "Withdrawn", color: "#22c55e", name: "Withdrawn" },
+                        ]}
+                        height={210}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+                {(analytics?.typeBreakdown || []).length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Transaction Mix ({chartRange.toUpperCase()})</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <DonutChart
+                        data={analytics?.typeBreakdown || []}
+                        innerLabel="Txn mix"
+                        innerValue={formatCurrency(analytics?.totals.net || 0, "INR", true)}
+                        height={180}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
+            {activeView === "insights" && (
+              <Card>
+                <CardContent className="p-3 space-y-2">
+                  <p className="text-xs font-medium flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4" />
+                    Concentration insights
+                  </p>
+                  {layerInsights?.concentration?.length ? (
+                    <>
+                      {typeAllocationChart.length > 0 && (
+                        <DonutChart
+                          data={typeAllocationChart}
+                          innerLabel="By Type"
+                          innerValue={formatCompactCurrency(totalValue, "INR")}
+                          height={180}
+                        />
+                      )}
+                      {layerInsights.concentration.slice(0, 5).map((row) => (
+                        <div key={row.symbol} className="flex items-center justify-between text-xs">
+                          <span>{row.symbol}</span>
+                          <span className={row.riskLevel === "high" ? "text-warning" : "text-muted-foreground"}>
+                            {row.weight.toFixed(1)}%
+                          </span>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No concentration alerts yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </>
       )}
@@ -630,6 +971,11 @@ export default function InvestmentsPage() {
               inputMode="decimal"
             />
           </div>
+          {!txnForm.amount && txnForm.quantity && txnForm.price && (
+            <p className="text-[11px] text-muted-foreground">
+              Auto amount: {formatCurrency(toDecimal(txnForm.quantity) * toDecimal(txnForm.price))}
+            </p>
+          )}
           <Input
             label="Note (optional)"
             value={txnForm.note}

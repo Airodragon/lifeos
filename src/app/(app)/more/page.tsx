@@ -15,6 +15,9 @@ import {
   ChevronRight,
   ArrowUpRight,
   BadgeDollarSign,
+  ShieldCheck,
+  Scale,
+  ReceiptText,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -42,7 +45,11 @@ const sections = [
     title: "Insights",
     items: [
       { href: "/analytics", icon: LineChart, label: "Analytics", desc: "Trends & reports", color: "bg-sky-500/10 text-sky-500" },
+      { href: "/goal-investing", icon: Target, label: "Goal Investing", desc: "Goal-wise SIP planning", color: "bg-cyan-500/10 text-cyan-500" },
+      { href: "/rebalance", icon: Scale, label: "Rebalance Assistant", desc: "Allocation drift suggestions", color: "bg-indigo-500/10 text-indigo-500" },
+      { href: "/tax-center", icon: ReceiptText, label: "Tax Center", desc: "STCG/LTCG estimate", color: "bg-amber-500/10 text-amber-500" },
       { href: "/notifications", icon: Bell, label: "Notifications", desc: "Alerts & reminders", color: "bg-rose-500/10 text-rose-500" },
+      { href: "/notifications#alerts-engine", icon: ShieldCheck, label: "Alerts Engine", desc: "Configure smart alerts", color: "bg-emerald-500/10 text-emerald-500" },
       { href: "/settings", icon: Settings, label: "Settings", desc: "Profile & preferences", color: "bg-gray-500/10 text-gray-500" },
     ],
   },

@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DonutChart } from "@/components/charts/donut-chart";
+import { BarChart } from "@/components/charts/bar-chart";
 import { formatDateTime, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
@@ -47,6 +49,15 @@ interface Account {
   type: string;
 }
 
+interface LayerInsightPayload {
+  anomalies: Array<{
+    category: string;
+    current: number;
+    baseline: number;
+    jumpPercent: number;
+  }>;
+}
+
 const typeIcon = {
   income: TrendingUp,
   expense: TrendingDown,
@@ -57,6 +68,7 @@ const SAMPLE_CSV = `Date,Description,Debit,Credit
 2026-02-01,UPI - Grocery Store,1250.00,
 2026-02-02,Salary,,85000.00
 2026-02-03,Electricity Bill,2100.50,`;
+const CHART_COLORS = ["#3b82f6", "#22c55e", "#f97316", "#8b5cf6", "#14b8a6", "#ec4899"];
 
 function localDateTimeValue(d = new Date()) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -72,9 +84,11 @@ export default function ExpensesPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
+  const [chartRange, setChartRange] = useState<"7d" | "30d" | "3m" | "1y">("30d");
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [layerInsights, setLayerInsights] = useState<LayerInsightPayload | null>(null);
   const [importing, setImporting] = useState(false);
   const [importForm, setImportForm] = useState({
     accountId: "",
@@ -88,6 +102,7 @@ export default function ExpensesPage() {
     accountId: "",
     date: localDateTimeValue(),
   });
+  const quickCategories = ["Food", "Fuel", "Bills", "Transfer", "Groceries", "Health"];
 
   const fetchData = useCallback(async () => {
     const typeParam = activeTab !== "all" ? `&type=${activeTab}` : "";
@@ -109,6 +124,31 @@ export default function ExpensesPage() {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    fetch("/api/insights/layer")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d?.error) setLayerInsights(d);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("lifeos-expense-form-defaults");
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as Partial<typeof formData>;
+      setFormData((prev) => ({
+        ...prev,
+        type: parsed.type || prev.type,
+        accountId: parsed.accountId || prev.accountId,
+        categoryId: parsed.categoryId || prev.categoryId,
+      }));
+    } catch {
+      // ignore malformed local storage
+    }
+  }, []);
+
   const handleAdd = async () => {
     if (!formData.amount) return;
     await fetch("/api/transactions", {
@@ -123,6 +163,14 @@ export default function ExpensesPage() {
       }),
     });
     setShowAddModal(false);
+    localStorage.setItem(
+      "lifeos-expense-form-defaults",
+      JSON.stringify({
+        type: formData.type,
+        accountId: formData.accountId,
+        categoryId: formData.categoryId,
+      })
+    );
     setFormData({
       amount: "",
       type: "expense",
@@ -195,6 +243,52 @@ export default function ExpensesPage() {
   const totalIncome = filtered
     .filter((t) => t.type === "income")
     .reduce((s, t) => s + toDecimal(t.amount), 0);
+  const rangeStart = (() => {
+    const now = new Date();
+    const d = new Date(now);
+    if (chartRange === "7d") d.setDate(now.getDate() - 7);
+    else if (chartRange === "30d") d.setDate(now.getDate() - 30);
+    else if (chartRange === "3m") d.setMonth(now.getMonth() - 3);
+    else d.setFullYear(now.getFullYear() - 1);
+    return d;
+  })();
+  const chartTxns = filtered.filter((t) => new Date(t.date) >= rangeStart);
+  const chartExpenseTotal = chartTxns
+    .filter((t) => t.type === "expense")
+    .reduce((s, t) => s + toDecimal(t.amount), 0);
+  const categoryData = Array.from(
+    chartTxns
+      .filter((t) => t.type === "expense")
+      .reduce((acc, txn) => {
+        const key = txn.category?.name || "Other";
+        acc.set(key, (acc.get(key) || 0) + toDecimal(txn.amount));
+        return acc;
+      }, new Map<string, number>())
+      .entries()
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([name, value], i) => ({
+      name,
+      value,
+      color: CHART_COLORS[i % CHART_COLORS.length],
+    }));
+  const dailySpendData = Array.from(
+    chartTxns
+      .filter((t) => t.type === "expense")
+      .reduce((acc, txn) => {
+        const dayKey = new Date(txn.date).toISOString().slice(0, 10);
+        acc.set(dayKey, (acc.get(dayKey) || 0) + toDecimal(txn.amount));
+        return acc;
+      }, new Map<string, number>())
+      .entries()
+  )
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-10)
+    .map(([day, value]) => ({
+      day: new Date(day).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+      Spend: value,
+    }));
 
   const categoryOptions = categories.filter((c) => {
     const ct = (c.type || "").toLowerCase().trim();
@@ -217,6 +311,20 @@ export default function ExpensesPage() {
 
   return (
     <div className="p-4 space-y-4 pb-6">
+      {layerInsights?.anomalies?.length ? (
+        <Card>
+          <CardContent className="p-3 space-y-2">
+            <p className="text-xs font-medium">Expense Intelligence</p>
+            {layerInsights.anomalies.slice(0, 3).map((row) => (
+              <div key={row.category} className="text-xs flex items-center justify-between">
+                <span className="truncate">{row.category}</span>
+                <span className="text-warning">+{row.jumpPercent.toFixed(0)}% vs baseline</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="flex gap-3">
         <Card className="flex-1">
           <CardContent className="p-3 text-center">
@@ -245,6 +353,54 @@ export default function ExpensesPage() {
         activeTab={activeTab}
         onChange={setActiveTab}
       />
+
+      {(categoryData.length > 0 || dailySpendData.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="lg:col-span-2 flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Charts for {chartRange.toUpperCase()}</p>
+            <div className="grid grid-cols-4 gap-1 rounded-xl bg-muted p-1 text-xs">
+              {(["7d", "30d", "3m", "1y"] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setChartRange(r)}
+                  className={`rounded-lg px-2 py-1.5 uppercase ${
+                    chartRange === r ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+          {categoryData.length > 0 && (
+            <Card>
+              <CardContent className="p-3">
+                <p className="text-xs font-medium mb-2">Expense Breakdown</p>
+                <DonutChart
+                  data={categoryData}
+                  innerLabel="Top categories"
+                  innerValue={formatCurrency(chartExpenseTotal, "INR", true)}
+                  height={190}
+                />
+              </CardContent>
+            </Card>
+          )}
+          {dailySpendData.length > 0 && (
+            <Card>
+              <CardContent className="p-3">
+                <p className="text-xs font-medium mb-2">Recent Daily Spend</p>
+                <BarChart
+                  data={dailySpendData}
+                  bars={[{ dataKey: "Spend", color: "#ef4444", name: "Spend" }]}
+                  xAxisKey="day"
+                  height={190}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -363,6 +519,35 @@ export default function ExpensesPage() {
         title="Add Transaction"
       >
         <div className="space-y-4">
+          <div className="flex gap-1.5 flex-wrap">
+            {quickCategories.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className="px-2.5 py-1 rounded-full text-xs bg-muted text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  const match = categories.find(
+                    (c) => c.name.toLowerCase() === name.toLowerCase()
+                  );
+                  if (name.toLowerCase() === "transfer") {
+                    setFormData((p) => ({ ...p, type: "transfer", categoryId: match?.id || "" }));
+                    return;
+                  }
+                  if (match) {
+                    setFormData((p) => ({
+                      ...p,
+                      type: match.type.toLowerCase().includes("income") ? "income" : "expense",
+                      categoryId: match.id,
+                    }));
+                    return;
+                  }
+                  setFormData((p) => ({ ...p, description: p.description || name }));
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-2">
             {["expense", "income", "transfer"].map((t) => (
               <button

@@ -20,6 +20,7 @@ import { ProgressRing } from "@/components/charts/progress-ring";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
+import { PRIORITY_KPIS } from "@/lib/product-kpis";
 
 interface DashboardData {
   netWorth: number;
@@ -67,6 +68,23 @@ interface AIInsights {
   opportunities: string[];
 }
 
+interface LayerInsights {
+  concentration: Array<{
+    symbol: string;
+    name: string;
+    type: string;
+    value: number;
+    weight: number;
+    riskLevel: "low" | "medium" | "high";
+  }>;
+  anomalies: Array<{
+    category: string;
+    current: number;
+    baseline: number;
+    jumpPercent: number;
+  }>;
+}
+
 const ACCOUNT_ICONS: Record<string, typeof Landmark> = {
   bank: Landmark,
   savings: PiggyBank,
@@ -92,6 +110,7 @@ export default function DashboardPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [aiInsights, setAiInsights] = useState<AIInsights | null>(null);
+  const [layerInsights, setLayerInsights] = useState<LayerInsights | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -101,12 +120,14 @@ export default function DashboardPage() {
       fetch("/api/goals").then((r) => r.json()),
       fetch("/api/accounts").then((r) => r.json()),
       fetch("/api/ai/insights").then((r) => r.json()).catch(() => null),
-    ]).then(([nw, txn, g, acc, ai]) => {
+      fetch("/api/insights/layer").then((r) => r.json()).catch(() => null),
+    ]).then(([nw, txn, g, acc, ai, layer]) => {
       setNetWorthData(nw);
       setTransactions(txn.transactions || []);
       setGoals(g || []);
       setAccounts(acc || []);
       if (ai && !ai.error) setAiInsights(ai);
+      if (layer && !layer.error) setLayerInsights(layer);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -268,6 +289,28 @@ export default function DashboardPage() {
         </Link>
       </motion.div>
 
+      <motion.div variants={fadeUp}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Product KPI Targets</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span>{PRIORITY_KPIS.activation.metric}</span>
+              <span className="font-semibold">{PRIORITY_KPIS.activation.target}%</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span>{PRIORITY_KPIS.retentionD30.metric}</span>
+              <span className="font-semibold">{PRIORITY_KPIS.retentionD30.target}%</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span>{PRIORITY_KPIS.dataFreshness.metric}</span>
+              <span className="font-semibold">{PRIORITY_KPIS.dataFreshness.target}%</span>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Goals Progress */}
       {goals.length > 0 && (
         <motion.div variants={fadeUp}>
@@ -413,6 +456,46 @@ export default function DashboardPage() {
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {layerInsights && (
+        <motion.div variants={fadeUp}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Risk & Spending Signals</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {layerInsights.concentration?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-1.5">Concentration risk</p>
+                  <div className="space-y-1.5">
+                    {layerInsights.concentration.slice(0, 3).map((row) => (
+                      <div key={row.symbol} className="flex items-center justify-between text-xs">
+                        <span className="truncate">
+                          {row.symbol} ({row.riskLevel})
+                        </span>
+                        <span>{row.weight.toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {layerInsights.anomalies?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-1.5">Spending anomalies</p>
+                  <div className="space-y-1.5">
+                    {layerInsights.anomalies.slice(0, 3).map((row) => (
+                      <div key={row.category} className="flex items-center justify-between text-xs">
+                        <span className="truncate">{row.category}</span>
+                        <span className="text-warning">+{row.jumpPercent.toFixed(0)}%</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>

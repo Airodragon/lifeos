@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Bell, BellOff, Check, CheckCheck, Trash2 } from "lucide-react";
+import { Bell, BellOff, Check, CheckCheck, ShieldCheck, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import { getRelativeTime } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Notification {
   id: string;
@@ -29,6 +31,24 @@ const TYPE_COLORS: Record<string, string> = {
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [runningAlerts, setRunningAlerts] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    concentrationThreshold: "25",
+    budgetUsageThreshold: "90",
+    drawdownThreshold: "8",
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("lifeos-alert-config");
+      if (saved) {
+        const parsed = JSON.parse(saved) as typeof alertConfig;
+        setAlertConfig(parsed);
+      }
+    } catch {
+      // ignore malformed local data
+    }
+  }, []);
 
   const fetchNotifications = async () => {
     const res = await fetch("/api/notifications");
@@ -59,6 +79,36 @@ export default function NotificationsPage() {
     fetchNotifications();
   };
 
+  const runAlertsEngine = async () => {
+    setRunningAlerts(true);
+    const payload = {
+      config: {
+        concentrationThreshold: Number(alertConfig.concentrationThreshold || 25),
+        budgetUsageThreshold: Number(alertConfig.budgetUsageThreshold || 90),
+        drawdownThreshold: Number(alertConfig.drawdownThreshold || 8),
+      },
+    };
+    try {
+      localStorage.setItem("lifeos-alert-config", JSON.stringify(alertConfig));
+      const res = await fetch("/api/alerts/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Could not run alerts engine");
+      } else {
+        toast.success(`Generated ${data.generated || 0} new alerts`);
+        await fetchNotifications();
+      }
+    } catch {
+      toast.error("Could not run alerts engine");
+    } finally {
+      setRunningAlerts(false);
+    }
+  };
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   if (loading) {
@@ -67,6 +117,48 @@ export default function NotificationsPage() {
 
   return (
     <div className="p-4 space-y-4">
+      <Card id="alerts-engine">
+        <CardContent className="p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4" />
+                Alerts Engine
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Configure thresholds and generate actionable alerts.
+              </p>
+            </div>
+            <Button size="sm" onClick={runAlertsEngine} disabled={runningAlerts}>
+              <Sparkles className="w-4 h-4 mr-1" />
+              {runningAlerts ? "Running..." : "Run now"}
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <Input
+              label="Concentration %"
+              type="number"
+              value={alertConfig.concentrationThreshold}
+              onChange={(e) =>
+                setAlertConfig((p) => ({ ...p, concentrationThreshold: e.target.value }))
+              }
+            />
+            <Input
+              label="Budget Usage %"
+              type="number"
+              value={alertConfig.budgetUsageThreshold}
+              onChange={(e) => setAlertConfig((p) => ({ ...p, budgetUsageThreshold: e.target.value }))}
+            />
+            <Input
+              label="Drawdown %"
+              type="number"
+              value={alertConfig.drawdownThreshold}
+              onChange={(e) => setAlertConfig((p) => ({ ...p, drawdownThreshold: e.target.value }))}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Notifications</h2>
