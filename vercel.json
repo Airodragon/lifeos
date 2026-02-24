@@ -3,6 +3,7 @@
     { "path": "/api/cron/sync-emails", "schedule": "0 6 * * *" },
     { "path": "/api/cron/refresh-prices", "schedule": "0 9 * * 1-5" },
     { "path": "/api/cron/sync-sips", "schedule": "0 7 * * *" },
-    { "path": "/api/cron/evaluate-price-alerts", "schedule": "0 8 * * *" }
+    { "path": "/api/cron/evaluate-price-alerts", "schedule": "0 8 * * *" },
+    { "path": "/api/cron/evaluate-subscriptions", "schedule": "0 10 * * *" }
   ]
 }

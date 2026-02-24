@@ -38,6 +38,7 @@ const morePages = [
   "/rebalance",
   "/tax-center",
   "/sips",
+  "/subscriptions",
   "/notifications",
   "/settings",
   "/onboarding",

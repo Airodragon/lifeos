@@ -24,6 +24,7 @@ export function Header() {
       { label: "Goals", href: "/goals" },
       { label: "Budgets", href: "/budgets" },
       { label: "SIPs", href: "/sips" },
+      { label: "Subscriptions", href: "/subscriptions" },
       { label: "Fixed Deposits", href: "/fixed-deposits" },
       { label: "Net Worth", href: "/net-worth" },
       { label: "Notifications", href: "/notifications" },

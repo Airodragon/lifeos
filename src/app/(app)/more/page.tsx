@@ -20,6 +20,7 @@ import {
   ReceiptText,
   CalendarClock,
   Sparkles,
+  Repeat,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -29,6 +30,7 @@ const sections = [
     items: [
       { href: "/accounts", icon: Landmark, label: "Accounts", desc: "Bank & cash balances", color: "bg-blue-500/10 text-blue-500" },
       { href: "/sips", icon: ArrowUpRight, label: "SIP Manager", desc: "Track & manage SIPs", color: "bg-emerald-500/10 text-emerald-500" },
+      { href: "/subscriptions", icon: Repeat, label: "Subscriptions Manager", desc: "Recurring subs & renewals", color: "bg-purple-500/10 text-purple-500" },
       { href: "/fixed-deposits", icon: BadgeDollarSign, label: "Fixed Deposits", desc: "FDs with auto interest calc", color: "bg-teal-500/10 text-teal-500" },
       { href: "/investments", icon: TrendingUp, label: "Investments", desc: "Stocks, ETFs, crypto", color: "bg-violet-500/10 text-violet-500" },
       { href: "/offline-assets", icon: Building2, label: "Offline Assets", desc: "Real estate, gold", color: "bg-amber-500/10 text-amber-500" },
