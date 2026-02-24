@@ -50,7 +50,7 @@ export function Header() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/30">
+    <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/30 pt-[env(safe-area-inset-top)]">
       <div className="flex items-center justify-between px-4 h-14 max-w-2xl mx-auto">
         <div>
           <p className="text-xs text-muted-foreground">{greeting}</p>

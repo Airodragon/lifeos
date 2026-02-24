@@ -47,7 +47,7 @@ export function PWAStatusBanner() {
 
   return (
     <div
-      className={`sticky top-14 z-20 border-b px-4 py-1.5 text-[11px] ${
+      className={`sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 border-b px-4 py-1.5 text-[11px] ${
         online
           ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
           : "border-orange-500/20 bg-orange-500/10 text-orange-700 dark:text-orange-300"

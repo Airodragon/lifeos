@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { getRelativeTime } from "@/lib/utils";
+import { canUseWebPush, subscribeForPush } from "@/components/features/push-bootstrap";
 import { toast } from "sonner";
 
 interface Notification {
@@ -52,6 +53,7 @@ export default function NotificationsPage() {
   const [cooldownMinutes, setCooldownMinutes] = useState("60");
   const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([]);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
+  const [pushHint, setPushHint] = useState("");
 
   useEffect(() => {
     try {
@@ -82,22 +84,47 @@ export default function NotificationsPage() {
     if (typeof window !== "undefined" && "Notification" in window) {
       setNotifPermission(Notification.permission);
     }
+    const support = canUseWebPush();
+    if (!support.ok) setPushHint(support.reason);
     fetchNotifications();
     fetchPriceAlerts();
   }, []);
 
   const enablePush = async () => {
-    if (!("Notification" in window)) {
-      toast.error("Browser notifications are not supported");
+    const support = canUseWebPush();
+    if (!support.ok) {
+      setPushHint(support.reason);
+      toast.error(support.reason);
       return;
     }
-    const permission = await Notification.requestPermission();
-    setNotifPermission(permission);
-    if (permission === "granted") {
-      toast.success("Push notifications enabled");
-      window.location.reload();
-    } else {
-      toast.error("Permission denied");
+    const result = await subscribeForPush(true);
+    if (!result.ok) {
+      setPushHint(result.reason);
+      setNotifPermission(typeof Notification !== "undefined" ? Notification.permission : "default");
+      toast.error(result.reason);
+      return;
+    }
+    setNotifPermission(Notification.permission);
+    setPushHint("");
+    toast.success("Push notifications enabled");
+  };
+
+  const sendLocalTestNotification = async () => {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg || Notification.permission !== "granted") {
+        toast.error("Enable push first");
+        return;
+      }
+      await reg.showNotification("LifeOS test notification", {
+        body: "Notifications are working on this device.",
+        icon: "/icons/icon-192-v2.png",
+        badge: "/icons/icon-192-v2.png",
+        data: { url: "/notifications" },
+      });
+      toast.success("Test notification sent");
+    } catch {
+      toast.error("Could not send test notification");
     }
   };
 
@@ -193,19 +220,32 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 pb-6">
       <Card id="alerts-engine">
         <CardContent className="p-3 space-y-3">
-          <div className="flex items-center justify-between gap-2 rounded-xl border border-border/40 p-2">
-            <p className="text-xs text-muted-foreground">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-border/40 p-2.5">
+            <p className="text-xs text-muted-foreground break-words">
               Push notifications: <span className="font-medium">{notifPermission}</span>
             </p>
-            {notifPermission !== "granted" && (
-              <Button size="sm" variant="outline" onClick={enablePush}>
-                Enable push
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {notifPermission !== "granted" && (
+                <Button size="sm" variant="outline" onClick={enablePush}>
+                  Enable push
+                </Button>
+              )}
+              {notifPermission === "granted" && (
+                <Button size="sm" variant="outline" onClick={sendLocalTestNotification}>
+                  Test push
+                </Button>
+              )}
+            </div>
           </div>
+          {pushHint && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-300">
+              {pushHint}. On iPhone, open in Safari, choose <strong>Share → Add to Home Screen</strong>,
+              launch the installed app, then tap Enable push.
+            </div>
+          )}
           <div className="flex items-center justify-between gap-2">
             <div>
               <p className="text-sm font-semibold flex items-center gap-1.5">
@@ -248,7 +288,7 @@ export default function NotificationsPage() {
       <Card>
         <CardContent className="p-3 space-y-2">
           <p className="text-sm font-semibold">Price alert</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Input
               label="Symbol"
               value={priceAlert.symbol}

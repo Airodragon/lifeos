@@ -14,11 +14,17 @@ export default async function AppLayout({
   if (!session) redirect("/login");
 
   return (
-    <div className="min-h-svh bg-background max-w-2xl mx-auto relative">
+    <div
+      className="min-h-svh bg-background max-w-2xl mx-auto relative"
+      style={{
+        paddingLeft: "env(safe-area-inset-left)",
+        paddingRight: "env(safe-area-inset-right)",
+      }}
+    >
       <Header />
       <PWAStatusBanner />
       <PushBootstrap />
-      <main className="pb-24">{children}</main>
+      <main className="pb-[calc(6rem+env(safe-area-inset-bottom))]">{children}</main>
       <BottomNav />
     </div>
   );
