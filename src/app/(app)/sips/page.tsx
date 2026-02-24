@@ -186,6 +186,19 @@ export default function SIPsPage() {
     toast.success("SIP removed");
   };
 
+  const migrateToInvestment = async (sip: SIP) => {
+    const res = await fetch(`/api/sips/${sip.id}/migrate-to-investment`, {
+      method: "POST",
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.error || "Migration failed");
+      return;
+    }
+    toast.success(data.message || "Migrated to MF holding");
+    await fetchSips();
+  };
+
   if (loading) {
     return (
       <div className="p-4 space-y-3">
@@ -377,7 +390,7 @@ export default function SIPsPage() {
                           </span>
                           <span>
                             {sip.lastUpdated
-                              ? `Live ${new Date(sip.lastUpdated).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
+                              ? `Valuation as of ${new Date(sip.lastUpdated).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
                               : `${toDecimal(sip.expectedReturn)}% expected`}
                           </span>
                         </div>
@@ -402,6 +415,15 @@ export default function SIPsPage() {
                           >
                             {sip.status === "active" ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
                           </button>
+                          {sip.symbol && toDecimal(sip.units) > 0 && sip.status !== "migrated" && (
+                            <button
+                              onClick={() => migrateToInvestment(sip)}
+                              className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-muted text-xs font-medium"
+                              title="Move this SIP holding to MF portfolio"
+                            >
+                              Move to MF
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDelete(sip.id)}
                             className="flex items-center justify-center px-3 py-2 rounded-xl text-xs text-destructive/60 hover:text-destructive hover:bg-destructive/5"

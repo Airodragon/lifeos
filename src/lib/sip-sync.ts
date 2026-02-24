@@ -53,7 +53,6 @@ export async function syncSipsForUser(userId: string) {
   const sips = await prisma.sIP.findMany({
     where: {
       userId,
-      status: "active",
       symbol: { not: null },
     },
   });
@@ -69,13 +68,16 @@ export async function syncSipsForUser(userId: string) {
     const quote = quotes.get(sip.symbol);
     if (!quote || !quote.price || quote.price <= 0) continue;
 
-    const due = isSipDue(
-      sip.frequency,
-      sip.sipDate,
-      sip.startDate,
-      sip.lastDebitDate,
-      now
-    );
+    const due =
+      sip.status === "active" &&
+      (!sip.endDate || startOfDay(now) <= startOfDay(sip.endDate)) &&
+      isSipDue(
+        sip.frequency,
+        sip.sipDate,
+        sip.startDate,
+        sip.lastDebitDate,
+        now
+      );
     const installmentAmount = Number(sip.amount);
     const addUnits = due ? installmentAmount / quote.price : 0;
 

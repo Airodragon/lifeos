@@ -425,6 +425,14 @@ export default function InvestmentsPage() {
                       <span>Qty: {inv.qty}</span>
                       <span>Avg: {formatCurrency(inv.avg)}</span>
                       <span>LTP: {formatCurrency(inv.current)}</span>
+                      <span>
+                        {inv.lastUpdated
+                          ? `As of ${new Date(inv.lastUpdated).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                            })}`
+                          : "As of —"}
+                      </span>
                       <button
                         onClick={() => openLedger(inv)}
                         className="text-primary/80 hover:text-primary"
