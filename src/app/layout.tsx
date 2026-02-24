@@ -51,8 +51,9 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="LifeOS" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png" />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180-v2.png" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180-v2.png" />
+        <link rel="apple-touch-icon-precomposed" href="/icons/apple-touch-icon-180-v2.png" />
         <link
           rel="apple-touch-startup-image"
           href="/icons/apple-splash-1290x2796.png"
