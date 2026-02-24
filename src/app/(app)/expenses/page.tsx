@@ -22,6 +22,7 @@ import { DonutChart } from "@/components/charts/donut-chart";
 import { BarChart } from "@/components/charts/bar-chart";
 import { formatDateTime, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
+import { markDataSynced } from "@/lib/sync-status";
 import { toast } from "sonner";
 
 interface Transaction {
@@ -117,6 +118,7 @@ export default function ExpensesPage() {
     setTransactions(txnData.transactions || []);
     setCategories(catData || []);
     setAccounts(accData || []);
+    markDataSynced();
     setLoading(false);
   }, [activeTab]);
 

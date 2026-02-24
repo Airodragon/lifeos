@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
+import { markDataSynced } from "@/lib/sync-status";
 import { toast } from "sonner";
 
 interface Investment {
@@ -143,6 +144,7 @@ export default function InvestmentsPage() {
     const res = await fetch("/api/investments");
     const data = await res.json();
     setInvestments(data || []);
+    markDataSynced();
     setLoading(false);
     try {
       const snapshots = JSON.parse(localStorage.getItem("lifeos-investment-price-snapshot") || "{}") as Record<string, number>;

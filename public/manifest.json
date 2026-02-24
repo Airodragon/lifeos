@@ -2,12 +2,39 @@
   "name": "LifeOS",
   "short_name": "LifeOS",
   "description": "Personal finance and life management dashboard",
+  "id": "/",
+  "scope": "/",
   "start_url": "/dashboard",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
   "orientation": "portrait",
+  "categories": ["finance", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Investments",
+      "short_name": "Investments",
+      "url": "/investments"
+    },
+    {
+      "name": "Expenses",
+      "short_name": "Expenses",
+      "url": "/expenses"
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard"
+    }
+  ],
   "icons": [
+    {
+      "src": "/icons/apple-touch-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",

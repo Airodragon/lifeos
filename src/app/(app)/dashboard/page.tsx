@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { PRIORITY_KPIS } from "@/lib/product-kpis";
+import { markDataSynced } from "@/lib/sync-status";
 
 interface DashboardData {
   netWorth: number;
@@ -128,6 +129,7 @@ export default function DashboardPage() {
       setAccounts(acc || []);
       if (ai && !ai.error) setAiInsights(ai);
       if (layer && !layer.error) setLayerInsights(layer);
+      markDataSynced();
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
