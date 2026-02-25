@@ -98,6 +98,17 @@ export async function POST(
         data: {
           status: "migrated",
           endDate: sip.endDate || now,
+          linkedInvestmentId: investmentId,
+          changeLogs: {
+            create: {
+              userId: user.id,
+              action: "sip_migrated",
+              field: "linkedInvestmentId",
+              fromValue: sip.linkedInvestmentId || "",
+              toValue: investmentId,
+              note: merged ? "Merged into existing MF holding" : "Created new MF holding via migration",
+            },
+          },
         },
       });
     });

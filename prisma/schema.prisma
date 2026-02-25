@@ -39,6 +39,8 @@ model User {
   recommendationSnapshots RecommendationSnapshot[]
   creditCardPayments CreditCardPayment[]
   subscriptions     Subscription[]
+  sipChangeLogs     SIPChangeLog[]
+  sipInstallments   SIPInstallment[]
 }
 
 model Authenticator {
@@ -141,6 +143,7 @@ model Investment {
   user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   dividends    Dividend[]
   transactions InvestmentTransaction[]
+  migratedFromSips SIP[] @relation("SipMigratedInvestment")
 
   @@index([userId])
   @@index([userId, deletedAt])
@@ -320,6 +323,9 @@ model SIP {
   name          String
   fundName      String
   symbol        String?
+  pricingSource String    @default("market") // market | mf_nav
+  schemeCode    String?
+  schemeName    String?
   amount        Decimal   @db.Decimal(15, 2)
   frequency     String    @default("monthly")
   sipDate       Int       @default(1)
@@ -333,11 +339,58 @@ model SIP {
   expectedReturn Decimal  @default(12) @db.Decimal(5, 2)
   status        String    @default("active")
   lastDebitDate DateTime?
+  linkedInvestmentId String?
   createdAt     DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedInvestment Investment? @relation("SipMigratedInvestment", fields: [linkedInvestmentId], references: [id], onDelete: SetNull)
+  installments SIPInstallment[]
+  changeLogs SIPChangeLog[]
 
   @@index([userId])
+  @@index([userId, status])
+  @@index([userId, pricingSource])
+  @@index([linkedInvestmentId])
+}
+
+model SIPInstallment {
+  id        String   @id @default(cuid())
+  sipId     String
+  userId    String
+  dueDate   DateTime
+  status    String   // due | paid | skipped | missed
+  amount    Decimal  @db.Decimal(15, 2)
+  navOrPrice Decimal? @db.Decimal(15, 4)
+  units     Decimal? @db.Decimal(15, 6)
+  isManual  Boolean  @default(false)
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sip  SIP  @relation(fields: [sipId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sipId, dueDate])
+  @@index([userId, dueDate])
+  @@index([sipId, status])
+}
+
+model SIPChangeLog {
+  id        String   @id @default(cuid())
+  sipId     String
+  userId    String
+  action    String
+  field     String?
+  fromValue String?
+  toValue   String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  sip  SIP  @relation(fields: [sipId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sipId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Notification {

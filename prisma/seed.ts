@@ -1,5 +1,7 @@
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { neonConfig } from "@neondatabase/serverless";
+import ws from "ws";
 import { hash } from "bcryptjs";
 import "dotenv/config";
 
@@ -8,6 +10,7 @@ const PASSWORD = process.env.SEED_PASSWORD || "changeme123";
 const NAME = process.env.SEED_NAME || "Admin";
 
 async function main() {
+  neonConfig.webSocketConstructor = ws;
   const connectionString = process.env.DATABASE_URL!;
   const adapter = new PrismaNeon({ connectionString });
   const prisma = new PrismaClient({ adapter });

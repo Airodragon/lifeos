@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getQuotes } from "@/lib/yahoo-finance";
+import { getLatestMfNav } from "@/lib/mf-nav";
 
 function daysInMonth(year: number, monthZeroBased: number) {
   return new Date(year, monthZeroBased + 1, 0).getDate();
@@ -53,20 +54,69 @@ export async function syncSipsForUser(userId: string) {
   const sips = await prisma.sIP.findMany({
     where: {
       userId,
-      symbol: { not: null },
+    },
+    include: {
+      installments: {
+        orderBy: { dueDate: "asc" },
+      },
     },
   });
 
-  const symbols = [...new Set(sips.map((s) => s.symbol).filter(Boolean) as string[])];
+  const symbols = [
+    ...new Set(
+      sips
+        .filter((s) => s.pricingSource !== "mf_nav")
+        .map((s) => s.symbol)
+        .filter(Boolean) as string[]
+    ),
+  ];
   const quotes = symbols.length ? await getQuotes(symbols) : new Map();
 
   let priceUpdated = 0;
   let installmentsPosted = 0;
+  let skipped = 0;
+  const reasons: Record<string, number> = {
+    missingMapping: 0,
+    sourceUnavailable: 0,
+    invalidPrice: 0,
+  };
 
   for (const sip of sips) {
-    if (!sip.symbol) continue;
-    const quote = quotes.get(sip.symbol);
-    if (!quote || !quote.price || quote.price <= 0) continue;
+    let currentPrice = 0;
+    let sourceLabel = "market";
+    if (sip.pricingSource === "mf_nav") {
+      if (!sip.schemeCode) {
+        skipped++;
+        reasons.missingMapping++;
+        continue;
+      }
+      const nav = await getLatestMfNav(sip.schemeCode);
+      if (!nav) {
+        skipped++;
+        reasons.sourceUnavailable++;
+        continue;
+      }
+      currentPrice = nav.nav;
+      sourceLabel = "mf_nav";
+    } else {
+      if (!sip.symbol) {
+        skipped++;
+        reasons.missingMapping++;
+        continue;
+      }
+      const quote = quotes.get(sip.symbol);
+      if (!quote) {
+        skipped++;
+        reasons.sourceUnavailable++;
+        continue;
+      }
+      currentPrice = quote.price;
+    }
+    if (!currentPrice || currentPrice <= 0) {
+      skipped++;
+      reasons.invalidPrice++;
+      continue;
+    }
 
     const due =
       sip.status === "active" &&
@@ -79,17 +129,55 @@ export async function syncSipsForUser(userId: string) {
         now
       );
     const installmentAmount = Number(sip.amount);
-    const addUnits = due ? installmentAmount / quote.price : 0;
+    const addUnits = due ? installmentAmount / currentPrice : 0;
+
+    let paidInvested = 0;
+    let paidUnits = 0;
+    for (const row of sip.installments) {
+      if (row.status !== "paid") continue;
+      paidInvested += Number(row.amount);
+      paidUnits += Number(row.units || 0);
+    }
+
+    const nextInvested = paidInvested + (due ? installmentAmount : 0);
+    const nextUnits = paidUnits + (due ? addUnits : 0);
+    const nextCurrentValue = nextUnits > 0 ? nextUnits * currentPrice : Number(sip.currentValue || 0);
 
     await prisma.sIP.update({
       where: { id: sip.id },
       data: {
-        units: Number(sip.units) + addUnits,
-        totalInvested: Number(sip.totalInvested) + (due ? installmentAmount : 0),
-        currentValue: (Number(sip.units) + addUnits) * quote.price,
-        lastPrice: quote.price,
+        units: nextUnits,
+        totalInvested: nextInvested,
+        currentValue: nextCurrentValue,
+        lastPrice: currentPrice,
         lastUpdated: now,
         ...(due ? { lastDebitDate: now } : {}),
+        ...(sip.pricingSource === "mf_nav" ? { schemeName: sip.schemeName || sip.fundName } : {}),
+        changeLogs: {
+          create: {
+            userId,
+            action: "valuation_sync",
+            field: sourceLabel,
+            fromValue: String(sip.lastPrice || ""),
+            toValue: String(currentPrice),
+          },
+        },
+        ...(due
+          ? {
+              installments: {
+                create: {
+                  userId,
+                  dueDate: now,
+                  status: "paid",
+                  amount: installmentAmount,
+                  navOrPrice: currentPrice,
+                  units: addUnits,
+                  isManual: false,
+                  note: "Auto-posted by SIP sync",
+                },
+              },
+            }
+          : {}),
       },
     });
 
@@ -97,6 +185,6 @@ export async function syncSipsForUser(userId: string) {
     if (due) installmentsPosted++;
   }
 
-  return { priceUpdated, installmentsPosted, total: sips.length };
+  return { priceUpdated, installmentsPosted, skipped, reasons, total: sips.length };
 }
 

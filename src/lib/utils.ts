@@ -27,6 +27,45 @@ export function formatPercent(value: number, digits: number = 1): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
 }
 
+export function formatDecimalRange(
+  value: number,
+  minimumFractionDigits: number = 2,
+  maximumFractionDigits: number = 4
+): string {
+  if (!Number.isFinite(value)) return "0";
+  return new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits,
+    maximumFractionDigits,
+  }).format(value);
+}
+
+export function formatCurrencyRange(
+  amount: number,
+  currency: string = "INR",
+  minimumFractionDigits: number = 2,
+  maximumFractionDigits: number = 4
+): string {
+  const formatter = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    minimumFractionDigits,
+    maximumFractionDigits,
+  });
+  return formatter.format(amount);
+}
+
+export function formatPercentRange(
+  value: number,
+  minimumFractionDigits: number = 2,
+  maximumFractionDigits: number = 4
+): string {
+  return `${value >= 0 ? "+" : ""}${formatDecimalRange(
+    value,
+    minimumFractionDigits,
+    maximumFractionDigits
+  )}%`;
+}
+
 function trimZeroes(value: string) {
   return value.replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
 }

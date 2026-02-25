@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   TrendingUp,
@@ -98,8 +98,10 @@ const TYPE_COLORS: Record<string, string> = {
 export default function InvestmentsPage() {
   const {
     fc: formatCurrency,
-    fp: formatPercent,
     fic: formatCompactCurrency,
+    fcr: formatCurrencyRange,
+    fdr: formatDecimalRange,
+    fpr: formatPercentRange,
   } = useFormat();
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,6 +143,7 @@ export default function InvestmentsPage() {
     quantity: "",
     avgBuyPrice: "",
   });
+  const autoRefreshingRef = useRef(false);
 
   const fetchInvestments = async () => {
     try {
@@ -189,6 +192,8 @@ export default function InvestmentsPage() {
 
   const autoRefreshPrices = async (invs: Investment[]) => {
     if (!invs.length) return;
+    if (autoRefreshingRef.current) return;
+    autoRefreshingRef.current = true;
     setRefreshing(true);
     try {
       const res = await fetch("/api/market-data/batch", {
@@ -218,6 +223,7 @@ export default function InvestmentsPage() {
     } catch {
       setMarketSyncError("Live quotes unavailable. Showing last synced prices.");
     }
+    autoRefreshingRef.current = false;
     setRefreshing(false);
   };
 
@@ -253,7 +259,7 @@ export default function InvestmentsPage() {
     const timer = setInterval(async () => {
       const data = await fetchInvestments();
       if (data?.length) await autoRefreshPrices(data);
-    }, 5 * 60 * 1000);
+    }, 15 * 1000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -662,7 +668,7 @@ export default function InvestmentsPage() {
                   <p
                     className={`text-xs ${totalGain >= 0 ? "text-success" : "text-destructive"}`}
                   >
-                    {formatPercent(totalGainPercent)}
+                    {formatPercentRange(totalGainPercent)}
                   </p>
                 </div>
               </div>
@@ -733,14 +739,14 @@ export default function InvestmentsPage() {
                         <p
                           className={`text-xs ${inv.gain >= 0 ? "text-success" : "text-destructive"}`}
                         >
-                          {formatPercent(inv.gainPercent)}
+                          {formatPercentRange(inv.gainPercent)}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30 text-[10px] text-muted-foreground">
-                      <span>Qty: {inv.qty}</span>
-                      <span>Avg: {formatCurrency(inv.avg)}</span>
-                      <span>LTP: {formatCurrency(inv.current)}</span>
+                      <span>Qty: {formatDecimalRange(inv.qty)}</span>
+                      <span>Avg: {formatCurrencyRange(inv.avg)}</span>
+                      <span>LTP: {formatCurrencyRange(inv.current)}</span>
                       <span
                         className={
                           !inv.lastUpdated ||

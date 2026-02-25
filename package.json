@@ -12,7 +12,8 @@
     "db:migrate": "prisma db push",
     "db:migrate:dev": "prisma migrate dev",
     "db:push": "prisma db push",
-    "db:seed": "npx tsx prisma/seed.ts"
+    "db:seed": "npx tsx prisma/seed.ts",
+    "db:reset:data": "npx tsx scripts/reset-user-data.ts --force"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -46,6 +47,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "web-push": "^3.6.7",
+    "ws": "^8.19.0",
     "yahoo-finance2": "^3.13.0",
     "zod": "^4.3.6"
   },

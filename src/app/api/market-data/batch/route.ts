@@ -10,7 +10,7 @@ export async function POST(req: Request) {
       return NextResponse.json({});
     }
 
-    const unique = [...new Set(symbols as string[])].slice(0, 30);
+    const unique = [...new Set(symbols as string[])];
     const quotes = await getQuotes(unique);
 
     const result: Record<string, number> = {};
