@@ -51,7 +51,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="LifeOS" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180-v2.png" />
+        {/* <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180-v2.png" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180-v2.png" />
         <link rel="apple-touch-icon-precomposed" href="/icons/apple-touch-icon-180-v2.png" />
         <link
@@ -83,7 +83,7 @@ export default function RootLayout({
           rel="apple-touch-startup-image"
           href="/icons/apple-splash-1125x2436.png"
           media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)"
-        />
+        /> */}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}

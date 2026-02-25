@@ -108,7 +108,7 @@ export default function MonthlyOverviewPage() {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0">
           <CardContent className="p-5">
-            <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
               <div>
                 <p className="text-[10px] opacity-60">Income</p>
                 <p className="text-sm font-bold">{formatCurrency(data.income, "INR", true)}</p>
@@ -140,7 +140,7 @@ export default function MonthlyOverviewPage() {
       </motion.div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <Card>
           <CardContent className="p-3 text-center">
             <BarChart3 className="w-4 h-4 mx-auto text-muted-foreground mb-1" />

@@ -148,10 +148,19 @@ export default function SIPsPage() {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchSips = useCallback(async () => {
-    const res = await fetch("/api/sips");
-    const data = await res.json();
-    setSips(data || []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/sips");
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        setSips([]);
+        return;
+      }
+      setSips(Array.isArray(data) ? data : []);
+    } catch {
+      setSips([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -565,7 +574,7 @@ export default function SIPsPage() {
                           </Badge>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center mb-3">
                           <div>
                             <p className="text-[10px] text-muted-foreground">Invested</p>
                             <p className="text-xs font-semibold">{formatCurrency(invested, "INR", true)}</p>
@@ -613,13 +622,13 @@ export default function SIPsPage() {
                                 units: toDecimal(sip.units).toString(),
                               });
                             }}
-                            className="flex-1 min-w-24 flex items-center justify-center gap-1 py-2 rounded-xl bg-muted text-xs font-medium"
+                            className="flex-1 basis-full sm:basis-auto min-w-0 flex items-center justify-center gap-1 py-2 rounded-xl bg-muted text-xs font-medium"
                           >
                             <Pencil className="w-3 h-3" /> Update
                           </button>
                           <button
                             onClick={() => openDetails(sip)}
-                            className="flex-1 min-w-24 flex items-center justify-center gap-1 py-2 rounded-xl bg-muted text-xs font-medium"
+                            className="flex-1 basis-full sm:basis-auto min-w-0 flex items-center justify-center gap-1 py-2 rounded-xl bg-muted text-xs font-medium"
                           >
                             Details
                           </button>
@@ -748,7 +757,7 @@ export default function SIPsPage() {
             onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
             inputMode="decimal"
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="SIP Date (day)"
               type="number"
@@ -774,7 +783,7 @@ export default function SIPsPage() {
               <CardTitle className="text-sm">Manual installment history</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Input
                   label="Due Date"
                   type="date"
@@ -797,7 +806,7 @@ export default function SIPsPage() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <Input
                   label="Amount"
                   type="number"
@@ -950,7 +959,7 @@ export default function SIPsPage() {
                 <CardTitle className="text-sm">Add installment</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Input
                     label="Date"
                     type="date"
@@ -973,7 +982,7 @@ export default function SIPsPage() {
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <Input
                     label="Amount"
                     type="number"

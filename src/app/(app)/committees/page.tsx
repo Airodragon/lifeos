@@ -302,7 +302,7 @@ export default function CommitteesPage() {
                         </div>
 
                         {/* Key Numbers */}
-                        <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center mb-3">
                           <div>
                             <p className="text-[10px] text-muted-foreground">Paid</p>
                             <p className="text-xs font-semibold">{formatCurrency(totalPaid, "INR", true)}</p>

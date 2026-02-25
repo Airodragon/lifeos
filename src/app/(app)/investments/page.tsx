@@ -631,7 +631,7 @@ export default function InvestmentsPage() {
         </Card>
       )}
 
-      <div className="grid grid-cols-4 gap-1 rounded-xl bg-muted p-1 text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl bg-muted p-1 text-xs">
         {(["holdings", "performance", "cashflows", "insights"] as const).map((view) => (
           <button
             key={view}
@@ -646,7 +646,7 @@ export default function InvestmentsPage() {
         ))}
       </div>
       <div className="flex items-center justify-between gap-2">
-        <div className="grid grid-cols-4 gap-1 rounded-xl bg-muted p-1 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl bg-muted p-1 text-xs">
           {(["7d", "30d", "3m", "1y"] as const).map((r) => (
             <button
               key={r}
@@ -1034,7 +1034,7 @@ export default function InvestmentsPage() {
       >
         <div className="space-y-4">
           <Card>
-            <CardContent className="p-3 grid grid-cols-2 gap-2 text-xs">
+            <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <div>
                 <p className="text-muted-foreground">Net Cash Invested</p>
                 <p className="font-semibold">{formatCurrency(ledgerNet)}</p>
@@ -1065,7 +1065,7 @@ export default function InvestmentsPage() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Type</label>
               <select
@@ -1089,7 +1089,7 @@ export default function InvestmentsPage() {
               onChange={(e) => setTxnForm((p) => ({ ...p, date: e.target.value }))}
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Input
               label="Quantity (opt)"
               type="number"
@@ -1105,7 +1105,7 @@ export default function InvestmentsPage() {
               inputMode="decimal"
             />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Input
               label="Amount"
               type="number"

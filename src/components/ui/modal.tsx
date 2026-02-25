@@ -30,7 +30,7 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-1.5 sm:px-3">
           <motion.div
             ref={overlayRef}
             initial={{ opacity: 0 }}
@@ -45,7 +45,7 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
             exit={{ y: "100%", opacity: 0 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className={cn(
-              "relative w-full sm:max-w-lg bg-card rounded-t-2xl sm:rounded-2xl border border-border/50 shadow-xl max-h-[85vh] overflow-auto",
+              "relative w-full max-w-[calc(100vw-0.75rem)] sm:max-w-lg bg-card rounded-t-2xl sm:rounded-2xl border border-border/50 shadow-xl max-h-[85vh] overflow-y-auto overflow-x-hidden overscroll-contain",
               className
             )}
           >
@@ -60,7 +60,7 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
                 </button>
               </div>
             )}
-            <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] min-w-0">
               {children}
             </div>
           </motion.div>

@@ -284,7 +284,7 @@ export default function SubscriptionsPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
         <Card>
           <CardContent className="p-2.5">
             <p className="text-muted-foreground">Active</p>
@@ -391,7 +391,7 @@ export default function SubscriptionsPage() {
                                   Due: {toDateInputValueIST(sub.nextDueDate)} · Remind {sub.remindDaysBefore}d before
                                 </span>
                               </div>
-                              <div className="grid grid-cols-4 gap-1.5">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                                 <button
                                   onClick={() => runAction(sub, "mark_paid")}
                                   className="rounded-lg bg-success/10 text-success text-[11px] py-1.5 font-medium"

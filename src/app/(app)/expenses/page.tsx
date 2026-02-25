@@ -577,7 +577,7 @@ export default function ExpensesPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <div className="lg:col-span-2 flex items-center justify-between">
             <p className="text-xs text-muted-foreground">Charts for {chartRange.toUpperCase()}</p>
-            <div className="grid grid-cols-4 gap-1 rounded-xl bg-muted p-1 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl bg-muted p-1 text-xs">
               {(["7d", "30d", "3m", "1y"] as const).map((r) => (
                 <button
                   key={r}
@@ -774,7 +774,7 @@ export default function ExpensesPage() {
         title="Manage Categories"
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Input
               label="Category Name"
               value={categoryForm.name}
@@ -793,7 +793,7 @@ export default function ExpensesPage() {
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Input
               label="Icon (optional)"
               value={categoryForm.icon}
@@ -807,7 +807,7 @@ export default function ExpensesPage() {
               placeholder="#22c55e"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Button onClick={saveCategory}>
               {categoryForm.id ? "Update Category" : "Add Category"}
             </Button>

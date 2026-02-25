@@ -86,7 +86,7 @@ export default function RecommendationsPage() {
         <CardContent className="p-3 text-sm text-muted-foreground">{data.summary}</CardContent>
       </Card>
 
-      <div className="grid grid-cols-3 gap-2 text-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
         <Card>
           <CardContent className="p-2.5">
             <p className="text-muted-foreground">Savings Rate</p>

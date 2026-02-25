@@ -170,7 +170,7 @@ export default function AnalyticsPage() {
         onChange={setPeriod}
       />
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card>
           <CardContent className="p-3 text-center">
             <TrendingUp className="w-4 h-4 mx-auto text-success mb-1" />

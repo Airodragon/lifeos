@@ -54,7 +54,7 @@ export function Header() {
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/30 pt-[env(safe-area-inset-top)]">
       <div className="flex items-center justify-between px-4 h-14 max-w-2xl mx-auto">
         <div>
-          <p className="text-xs text-muted-foreground">{greeting}</p>
+          <p suppressHydrationWarning className="text-xs text-muted-foreground">{greeting}</p>
           <h1 className="text-base font-semibold -mt-0.5">{name}</h1>
         </div>
         <div className="flex items-center gap-1">

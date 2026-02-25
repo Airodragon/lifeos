@@ -354,7 +354,7 @@ export default function DashboardPage() {
         </Card>
       </motion.div>
 
-      <motion.div variants={fadeUp} className="grid grid-cols-3 gap-2 sm:gap-3">
+      <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
         <Link href="/investments">
           <Card className="hover:border-primary/30 transition-colors">
             <CardContent className="p-3 text-center">
@@ -490,13 +490,13 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {goals.slice(0, 4).map((goal) => {
                   const current = toDecimal(goal.currentAmount);
                   const target = toDecimal(goal.targetAmount);
                   const percent = target > 0 ? Math.round((current / target) * 100) : 0;
                   return (
-                    <div key={goal.id} className="flex flex-col items-center min-w-[72px]">
+                    <div key={goal.id} className="flex flex-col items-center min-w-0">
                       <ProgressRing
                         value={current}
                         max={target}

@@ -415,7 +415,7 @@ export default function AccountsPage() {
           />
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Account Type</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {ACCOUNT_TYPES.map((type) => {
                 const Icon = type.icon;
                 return (
@@ -477,7 +477,7 @@ export default function AccountsPage() {
           />
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Account Type</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {ACCOUNT_TYPES.map((type) => {
                 const Icon = type.icon;
                 return (
