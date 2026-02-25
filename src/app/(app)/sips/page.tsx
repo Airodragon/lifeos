@@ -143,6 +143,9 @@ export default function SIPsPage() {
     expectedReturn: "12",
   });
   const autoRefreshRef = useRef(false);
+  const searchRequestRef = useRef(0);
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchSips = useCallback(async () => {
     const res = await fetch("/api/sips");
@@ -171,21 +174,45 @@ export default function SIPsPage() {
     setDetailLoading(false);
   }, []);
 
-  const handleSearch = async (q: string) => {
-    setSearchQuery(q);
-    if (q.length < 2) {
-      setSearchResults([]);
-      return;
-    }
+  const runSchemeSearch = async (q: string, requestId: number) => {
+    searchAbortRef.current?.abort();
     setSearchLoading(true);
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
     const endpoint =
       form.pricingSource === "mf_nav"
         ? `/api/mf/search?q=${encodeURIComponent(q)}`
         : `/api/market-data?q=${encodeURIComponent(q)}`;
-    const res = await fetch(endpoint);
-    const data = await res.json();
-    setSearchResults(data || []);
-    setSearchLoading(false);
+    try {
+      const res = await fetch(endpoint, { signal: controller.signal });
+      const data = await res.json();
+      if (requestId !== searchRequestRef.current) return;
+      setSearchResults(Array.isArray(data) ? data : []);
+    } catch {
+      if (requestId !== searchRequestRef.current) return;
+      setSearchResults([]);
+    } finally {
+      if (requestId === searchRequestRef.current) {
+        setSearchLoading(false);
+      }
+    }
+  };
+
+  const handleSearch = (q: string) => {
+    setSearchQuery(q);
+    searchRequestRef.current += 1;
+    const requestId = searchRequestRef.current;
+    if (q.trim().length < 2) {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      searchAbortRef.current?.abort();
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      void runSchemeSearch(q, requestId);
+    }, 250);
   };
 
   const selectSymbol = (result: SearchResult) => {
@@ -211,6 +238,7 @@ export default function SIPsPage() {
     }
     setSearchResults([]);
     setSearchQuery("");
+    setSearchLoading(false);
   };
 
   const addManualInstallment = () => {
@@ -632,15 +660,18 @@ export default function SIPsPage() {
             <label className="text-sm font-medium">Data source</label>
             <select
               value={form.pricingSource}
-              onChange={(e) =>
+              onChange={(e) => {
                 setForm((p) => ({
                   ...p,
                   pricingSource: e.target.value as "market" | "mf_nav",
                   symbol: "",
                   schemeCode: "",
                   schemeName: "",
-                }))
-              }
+                }));
+                setSearchResults([]);
+                setSearchQuery("");
+                setSearchLoading(false);
+              }}
               className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
             >
               <option value="mf_nav">Mutual Fund NAV (AMFI)</option>
@@ -658,27 +689,30 @@ export default function SIPsPage() {
             {searchLoading && (
               <p className="text-[10px] text-muted-foreground mt-1">Searching...</p>
             )}
-            {searchResults.length > 0 && (
-              <div className="absolute top-full mt-1 w-full bg-card border border-border rounded-xl shadow-lg z-10 max-h-48 overflow-auto">
-                {searchResults.map((r) => {
-                  const key = r.schemeCode || r.symbol || Math.random().toString(36);
-                  const title = r.schemeName || r.name || r.symbol || "—";
-                  const sub = r.schemeCode || r.symbol || "";
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => selectSymbol(r)}
-                      className="w-full text-left px-3 py-2 hover:bg-muted text-sm"
-                    >
-                      <span className="font-medium">{title}</span>
-                      <span className="text-muted-foreground ml-2">{sub}</span>
-                    </button>
-                  );
-                })}
+            {searchQuery.trim().length >= 2 && (
+              <div className="mt-1 w-full bg-card border border-border rounded-xl shadow-sm z-10 max-h-56 overflow-auto">
+                {searchLoading ? (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">Searching...</p>
+                ) : searchResults.length > 0 ? (
+                  searchResults.map((r, idx) => {
+                    const key = r.schemeCode || r.symbol || `result-${idx}`;
+                    const title = r.schemeName || r.name || r.symbol || "—";
+                    const sub = r.schemeCode || r.symbol || "";
+                    return (
+                      <button
+                        key={key}
+                        onMouseDown={() => selectSymbol(r)}
+                        className="w-full text-left px-3 py-2 hover:bg-muted text-sm"
+                      >
+                        <span className="font-medium">{title}</span>
+                        <span className="text-muted-foreground ml-2">{sub}</span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">No results found.</p>
+                )}
               </div>
-            )}
-            {!searchLoading && searchQuery.length >= 2 && searchResults.length === 0 && (
-              <p className="text-[10px] text-muted-foreground mt-1">No results found.</p>
             )}
           </div>
           <Input

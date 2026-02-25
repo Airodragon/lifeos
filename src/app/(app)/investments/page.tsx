@@ -107,6 +107,7 @@ export default function InvestmentsPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<{ symbol: string; name: string; type: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showLedger, setShowLedger] = useState<Investment | null>(null);
@@ -144,6 +145,9 @@ export default function InvestmentsPage() {
     avgBuyPrice: "",
   });
   const autoRefreshingRef = useRef(false);
+  const searchRequestRef = useRef(0);
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchInvestments = async () => {
     try {
@@ -273,21 +277,50 @@ export default function InvestmentsPage() {
       .catch(() => {});
   }, [chartRange, investments.length]);
 
-  const handleSearch = async (q: string) => {
-    setSearchQuery(q);
-    if (q.length < 2) {
+  const runSymbolSearch = async (q: string, requestId: number) => {
+    searchAbortRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+    setSearchLoading(true);
+    try {
+      const res = await fetch(`/api/market-data?q=${encodeURIComponent(q)}`, {
+        signal: controller.signal,
+      });
+      const data = await res.json();
+      if (requestId !== searchRequestRef.current) return;
+      setSearchResults(Array.isArray(data) ? data : []);
+    } catch {
+      if (requestId !== searchRequestRef.current) return;
       setSearchResults([]);
+    } finally {
+      if (requestId === searchRequestRef.current) {
+        setSearchLoading(false);
+      }
+    }
+  };
+
+  const handleSearch = (q: string) => {
+    setSearchQuery(q);
+    searchRequestRef.current += 1;
+    const requestId = searchRequestRef.current;
+    if (q.trim().length < 2) {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      searchAbortRef.current?.abort();
+      setSearchResults([]);
+      setSearchLoading(false);
       return;
     }
-    const res = await fetch(`/api/market-data?q=${encodeURIComponent(q)}`);
-    const data = await res.json();
-    setSearchResults(data || []);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      void runSymbolSearch(q, requestId);
+    }, 250);
   };
 
   const selectSymbol = (result: { symbol: string; name: string; type: string }) => {
     setForm((p) => ({ ...p, symbol: result.symbol, name: result.name }));
     setSearchResults([]);
     setSearchQuery("");
+    setSearchLoading(false);
   };
 
   const handleAdd = async () => {
@@ -924,18 +957,24 @@ export default function InvestmentsPage() {
               onChange={(e) => handleSearch(e.target.value)}
               className="w-full h-11 pl-9 pr-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
-            {searchResults.length > 0 && (
-              <div className="absolute top-full mt-1 w-full bg-card border border-border rounded-xl shadow-lg z-10 max-h-48 overflow-auto">
-                {searchResults.map((r) => (
-                  <button
-                    key={r.symbol}
-                    onClick={() => selectSymbol(r)}
-                    className="w-full text-left px-3 py-2 hover:bg-muted text-sm"
-                  >
-                    <span className="font-medium">{r.symbol}</span>
-                    <span className="text-muted-foreground ml-2">{r.name}</span>
-                  </button>
-                ))}
+            {searchQuery.trim().length >= 2 && (
+              <div className="mt-1 w-full bg-card border border-border rounded-xl shadow-sm z-10 max-h-56 overflow-auto">
+                {searchLoading ? (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">Searching symbols...</p>
+                ) : searchResults.length > 0 ? (
+                  searchResults.map((r) => (
+                    <button
+                      key={r.symbol}
+                      onMouseDown={() => selectSymbol(r)}
+                      className="w-full text-left px-3 py-2 hover:bg-muted text-sm"
+                    >
+                      <span className="font-medium">{r.symbol}</span>
+                      <span className="text-muted-foreground ml-2">{r.name}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">No matching symbols found.</p>
+                )}
               </div>
             )}
           </div>

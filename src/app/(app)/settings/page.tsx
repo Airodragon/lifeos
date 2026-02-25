@@ -24,7 +24,7 @@ const settingsItems = [
   { href: "/settings/profile", icon: User, label: "Profile", description: "Name, email, currency" },
   { href: "/settings/security", icon: Shield, label: "Security", description: "Passkeys, password" },
   { href: "/settings/email", icon: Mail, label: "Email Sync", description: "Connect Gmail for auto-tracking" },
-  { href: "#categories", icon: Tag, label: "Categories", description: "Manage expense categories" },
+  { href: "/expenses?manage=categories", icon: Tag, label: "Categories", description: "Manage expense categories" },
 ];
 
 export default function SettingsPage() {

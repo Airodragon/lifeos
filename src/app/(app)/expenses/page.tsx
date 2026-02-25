@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   TrendingUp,
   TrendingDown,
@@ -11,6 +12,8 @@ import {
   Pencil,
   ArrowLeftRight,
   Upload,
+  Tag,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
@@ -92,6 +95,9 @@ const BANK_TEMPLATES: Record<string, string> = {
 const CHART_COLORS = ["#3b82f6", "#22c55e", "#f97316", "#8b5cf6", "#14b8a6", "#ec4899"];
 
 export default function ExpensesPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { fc: formatCurrency } = useFormat();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -107,6 +113,7 @@ export default function ExpensesPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [layerInsights, setLayerInsights] = useState<LayerInsightPayload | null>(null);
   const [budgets, setBudgets] = useState<BudgetRow[]>([]);
   const [importing, setImporting] = useState(false);
@@ -132,6 +139,13 @@ export default function ExpensesPage() {
     categoryId: "",
     accountId: "",
     date: nowDateTimeInputValueIST(),
+  });
+  const [categoryForm, setCategoryForm] = useState({
+    id: "",
+    name: "",
+    type: "expense",
+    icon: "",
+    color: "",
   });
   const quickCategories = ["Food", "Fuel", "Bills", "Transfer", "Groceries", "Health"];
 
@@ -169,6 +183,15 @@ export default function ExpensesPage() {
   useEffect(() => {
     setPage(1);
   }, [activeTab, search, startDate, endDate]);
+
+  useEffect(() => {
+    if (searchParams.get("manage") !== "categories") return;
+    setShowCategoryModal(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("manage");
+    const next = params.toString();
+    router.replace(next ? `${pathname}?${next}` : pathname);
+  }, [pathname, router, searchParams]);
 
   useEffect(() => {
     fetch("/api/insights/layer")
@@ -278,6 +301,52 @@ export default function ExpensesPage() {
     setPage(1);
     fetchData();
     toast.success("Transaction updated");
+  };
+
+  const openCategoryModal = () => {
+    setCategoryForm({ id: "", name: "", type: "expense", icon: "", color: "" });
+    setShowCategoryModal(true);
+  };
+
+  const saveCategory = async () => {
+    if (!categoryForm.name.trim()) return;
+    const payload = {
+      name: categoryForm.name.trim(),
+      type: categoryForm.type,
+      icon: categoryForm.icon || undefined,
+      color: categoryForm.color || undefined,
+    };
+    const endpoint = categoryForm.id
+      ? `/api/categories/${categoryForm.id}`
+      : "/api/categories";
+    const method = categoryForm.id ? "PUT" : "POST";
+    const res = await fetch(endpoint, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      toast.error("Could not save category");
+      return;
+    }
+    toast.success(categoryForm.id ? "Category updated" : "Category created");
+    const catRes = await fetch("/api/categories");
+    const catData = await catRes.json();
+    setCategories(Array.isArray(catData) ? catData : []);
+    setCategoryForm({ id: "", name: "", type: "expense", icon: "", color: "" });
+  };
+
+  const deleteCategory = async (id: string) => {
+    const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast.error("Could not delete category");
+      return;
+    }
+    toast.success("Category deleted");
+    const catRes = await fetch("/api/categories");
+    const catData = await catRes.json();
+    setCategories(Array.isArray(catData) ? catData : []);
+    setCategoryForm((prev) => (prev.id === id ? { id: "", name: "", type: "expense", icon: "", color: "" } : prev));
   };
 
   const handleImport = async () => {
@@ -577,13 +646,17 @@ export default function ExpensesPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}>
           <Upload className="w-4 h-4 mr-1" />
           Import Statement CSV/PDF
         </Button>
         <Button variant="outline" size="sm" onClick={exportTransactionsCsv}>
           Export CSV
+        </Button>
+        <Button variant="outline" size="sm" onClick={openCategoryModal}>
+          <Tag className="w-4 h-4 mr-1" />
+          Manage Categories
         </Button>
       </div>
 
@@ -694,6 +767,98 @@ export default function ExpensesPage() {
           Load more transactions
         </Button>
       )}
+
+      <Modal
+        open={showCategoryModal}
+        onClose={() => setShowCategoryModal(false)}
+        title="Manage Categories"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              label="Category Name"
+              value={categoryForm.name}
+              onChange={(e) => setCategoryForm((p) => ({ ...p, name: e.target.value }))}
+              placeholder="e.g. Medical"
+            />
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Type</label>
+              <select
+                value={categoryForm.type}
+                onChange={(e) => setCategoryForm((p) => ({ ...p, type: e.target.value }))}
+                className="w-full h-11 rounded-xl border border-input bg-background px-3 text-sm"
+              >
+                <option value="expense">Expense</option>
+                <option value="income">Income</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              label="Icon (optional)"
+              value={categoryForm.icon}
+              onChange={(e) => setCategoryForm((p) => ({ ...p, icon: e.target.value }))}
+              placeholder="Tag"
+            />
+            <Input
+              label="Color (optional)"
+              value={categoryForm.color}
+              onChange={(e) => setCategoryForm((p) => ({ ...p, color: e.target.value }))}
+              placeholder="#22c55e"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={saveCategory}>
+              {categoryForm.id ? "Update Category" : "Add Category"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setCategoryForm({ id: "", name: "", type: "expense", icon: "", color: "" })}
+            >
+              Clear
+            </Button>
+          </div>
+
+          <div className="space-y-2 max-h-56 overflow-auto">
+            {categories.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No categories found.</p>
+            ) : (
+              categories.map((c) => (
+                <div key={c.id} className="flex items-center justify-between gap-2 rounded-xl border border-border/50 p-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{c.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{c.type}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCategoryForm({
+                          id: c.id,
+                          name: c.name,
+                          type: c.type,
+                          icon: c.icon || "",
+                          color: c.color || "",
+                        })
+                      }
+                      className="px-2 py-1 rounded bg-muted text-xs"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteCategory(c.id)}
+                      className="p-1.5 rounded text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={showAddModal}
