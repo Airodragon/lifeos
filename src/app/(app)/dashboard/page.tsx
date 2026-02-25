@@ -549,18 +549,30 @@ export default function DashboardPage() {
 
       <motion.div variants={fadeUp}>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href="/expenses">Add Expense</Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/expenses?type=income">Add Income</Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/investments">Add Investment</Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/goals">Goal Update</Link>
-          </Button>
+          <Link
+            href="/expenses"
+            className="inline-flex items-center justify-center rounded-md border border-border bg-transparent hover:bg-accent h-8 px-3 text-xs font-medium"
+          >
+            Add Expense
+          </Link>
+          <Link
+            href="/expenses?type=income"
+            className="inline-flex items-center justify-center rounded-md border border-border bg-transparent hover:bg-accent h-8 px-3 text-xs font-medium"
+          >
+            Add Income
+          </Link>
+          <Link
+            href="/investments"
+            className="inline-flex items-center justify-center rounded-md border border-border bg-transparent hover:bg-accent h-8 px-3 text-xs font-medium"
+          >
+            Add Investment
+          </Link>
+          <Link
+            href="/goals"
+            className="inline-flex items-center justify-center rounded-md border border-border bg-transparent hover:bg-accent h-8 px-3 text-xs font-medium"
+          >
+            Goal Update
+          </Link>
         </div>
       </motion.div>
 
