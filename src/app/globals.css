@@ -91,15 +91,38 @@ input, textarea, select {
 input[type="datetime-local"],
 input[type="date"],
 input[type="time"] {
+  display: block;
+  appearance: none;
+  -webkit-appearance: none;
   min-width: 0;
+  min-inline-size: 0;
   max-width: 100%;
+  inline-size: 100%;
   width: 100%;
+  line-height: 1.2;
+  padding-right: 2.25rem;
 }
 
 input[type="datetime-local"]::-webkit-datetime-edit,
 input[type="date"]::-webkit-datetime-edit,
 input[type="time"]::-webkit-datetime-edit {
   padding: 0;
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+input[type="datetime-local"]::-webkit-date-and-time-value,
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  min-width: 0;
+}
+
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  opacity: 0.85;
 }
 
 img,

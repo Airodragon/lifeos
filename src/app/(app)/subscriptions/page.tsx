@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { nowDateInputValueIST, toDateInputValueIST, toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
+import { triggerHaptic } from "@/lib/haptics";
 
 type Cadence = "monthly" | "yearly" | "one_time";
 
@@ -149,6 +150,7 @@ export default function SubscriptionsPage() {
       return;
     }
     toast.success("Subscription added");
+    triggerHaptic("success");
     setShowAdd(false);
     resetForm();
     fetchData();
@@ -202,6 +204,7 @@ export default function SubscriptionsPage() {
       return;
     }
     toast.success("Subscription updated");
+    triggerHaptic("success");
     setEditSubscription(null);
     resetForm();
     fetchData();
@@ -226,6 +229,7 @@ export default function SubscriptionsPage() {
             ? "Paused"
             : "Resumed"
     );
+    triggerHaptic(action === "mark_paid" ? "success" : "light");
     fetchData();
   };
 
@@ -236,6 +240,7 @@ export default function SubscriptionsPage() {
       return;
     }
     toast.success("Subscription removed");
+    triggerHaptic("warning");
     fetchData();
   };
 
@@ -269,7 +274,8 @@ export default function SubscriptionsPage() {
     return (
       <div className="p-4 space-y-3">
         <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-40 w-full" />
         <Skeleton className="h-24 w-full" />
       </div>
     );
@@ -286,19 +292,19 @@ export default function SubscriptionsPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
         <Card>
-          <CardContent className="p-2.5">
+          <CardContent className="p-3">
             <p className="text-muted-foreground">Active</p>
             <p className="font-semibold">{summary.activeCount}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-2.5">
+          <CardContent className="p-3">
             <p className="text-muted-foreground">Monthly Eq.</p>
             <p className="font-semibold">{formatCurrency(summary.monthlyEquivalent, "INR", true)}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-2.5">
+          <CardContent className="p-3">
             <p className="text-muted-foreground">Upcoming</p>
             <p className="font-semibold">
               {summary.nextDueInDays === undefined
@@ -356,7 +362,7 @@ export default function SubscriptionsPage() {
                                   <p className="text-xs text-muted-foreground truncate">
                                     {sub.merchant || "No merchant"} · {cadenceLabel(sub.cadence)}
                                   </p>
-                                  <p className="text-[11px] text-muted-foreground truncate">
+                                  <p className="text-xs text-muted-foreground truncate">
                                     {sub.paymentAccount?.name || sub.paymentMethodLabel || "No payment account"}
                                   </p>
                                 </div>
@@ -385,7 +391,7 @@ export default function SubscriptionsPage() {
                                   </Badge>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                 <CalendarClock className="w-3 h-3" />
                                 <span>
                                   Due: {toDateInputValueIST(sub.nextDueDate)} · Remind {sub.remindDaysBefore}d before
@@ -394,21 +400,21 @@ export default function SubscriptionsPage() {
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                                 <button
                                   onClick={() => runAction(sub, "mark_paid")}
-                                  className="rounded-lg bg-success/10 text-success text-[11px] py-1.5 font-medium"
+                                  className="rounded-lg bg-success/10 text-success text-xs py-1.5 font-medium"
                                 >
                                   <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                   Paid
                                 </button>
                                 <button
                                   onClick={() => runAction(sub, "skip")}
-                                  className="rounded-lg bg-muted text-muted-foreground text-[11px] py-1.5 font-medium"
+                                  className="rounded-lg bg-muted text-muted-foreground text-xs py-1.5 font-medium"
                                 >
                                   <SkipForward className="w-3 h-3 inline mr-1" />
                                   Skip
                                 </button>
                                 <button
                                   onClick={() => runAction(sub, sub.active ? "pause" : "resume")}
-                                  className="rounded-lg bg-muted text-muted-foreground text-[11px] py-1.5 font-medium"
+                                  className="rounded-lg bg-muted text-muted-foreground text-xs py-1.5 font-medium"
                                 >
                                   {sub.active ? (
                                     <Pause className="w-3 h-3 inline mr-1" />
@@ -422,13 +428,13 @@ export default function SubscriptionsPage() {
                                     onClick={() => openEdit(sub)}
                                     className="rounded-lg bg-muted p-1.5 text-muted-foreground"
                                   >
-                                    <Pencil className="w-3.5 h-3.5" />
+                                    <Pencil className="w-3 h-3" />
                                   </button>
                                   <button
                                     onClick={() => removeSubscription(sub)}
                                     className="rounded-lg bg-destructive/10 p-1.5 text-destructive"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <Trash2 className="w-3 h-3" />
                                   </button>
                                 </div>
                               </div>

@@ -11,9 +11,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ProgressRing } from "@/components/charts/progress-ring";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toDecimal } from "@/lib/utils";
 import { useFormat } from "@/hooks/use-format";
 import { toast } from "sonner";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface Goal {
   id: string;
@@ -39,6 +41,7 @@ const GOAL_COLORS = ["#22c55e", "#3b82f6", "#f97316", "#8b5cf6", "#ec4899", "#14
 
 export default function GoalsPage() {
   const { fc: formatCurrency } = useFormat();
+  const [renderNowTs] = useState(() => Date.now());
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -89,6 +92,7 @@ export default function GoalsPage() {
     setForm({ name: "", targetAmount: "", currentAmount: "0", deadline: "", color: GOAL_COLORS[0] });
     fetchGoals();
     toast.success("Goal created");
+    triggerHaptic("success");
   };
 
   const handleUpdate = async () => {
@@ -104,15 +108,24 @@ export default function GoalsPage() {
     setUpdateAmount("");
     fetchGoals();
     toast.success("Progress updated");
+    triggerHaptic("success");
   };
 
   const handleDelete = async (id: string) => {
     await fetch(`/api/goals/${id}`, { method: "DELETE" });
     fetchGoals();
+    triggerHaptic("warning");
   };
 
   if (loading) {
-    return <div className="p-4 space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-28 rounded-2xl bg-muted animate-pulse" />)}</div>;
+    return (
+      <div className="p-4 space-y-3">
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    );
   }
 
   return (
@@ -143,7 +156,7 @@ export default function GoalsPage() {
             let monthlyNeeded = 0;
             if (goal.deadline && !isCompleted) {
               const monthsLeft = Math.max(
-                (new Date(goal.deadline).getTime() - Date.now()) / (30 * 86400000),
+                (new Date(goal.deadline).getTime() - renderNowTs) / (30 * 86400000),
                 1
               );
               monthlyNeeded = remaining / monthsLeft;
@@ -157,7 +170,7 @@ export default function GoalsPage() {
                 animate={{ opacity: 1, y: 0 }}
               >
                 <Card>
-                  <CardContent className="p-4">
+                  <CardContent className="p-3">
                     <div className="flex items-start gap-3">
                       <ProgressRing
                         value={current}
@@ -184,7 +197,7 @@ export default function GoalsPage() {
                           )}
                         </div>
                         {projection && (
-                          <div className="mt-1 flex items-center gap-2 text-[10px]">
+                          <div className="mt-1 flex items-center gap-2 text-xs">
                             <Badge
                               variant={
                                 projection.status === "on_track"
@@ -208,7 +221,7 @@ export default function GoalsPage() {
                           </div>
                           <Progress value={current} max={target} size="sm" indicatorClassName={`bg-[${goal.color}]`} />
                         </div>
-                        <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                           {goal.deadline && (
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3 h-3" />

@@ -34,6 +34,7 @@ import {
 import { useFormat } from "@/hooks/use-format";
 import { markDataSynced } from "@/lib/sync-status";
 import { toast } from "sonner";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface Transaction {
   id: string;
@@ -258,12 +259,14 @@ export default function ExpensesPage() {
       date: nowDateTimeInputValueIST(),
     });
     fetchData();
+    triggerHaptic("success");
   };
 
   const handleDelete = async (id: string) => {
     await fetch(`/api/transactions/${id}`, { method: "DELETE" });
     setPage(1);
     fetchData();
+    triggerHaptic("warning");
   };
 
   const openEdit = (txn: Transaction) => {
@@ -301,6 +304,7 @@ export default function ExpensesPage() {
     setPage(1);
     fetchData();
     toast.success("Transaction updated");
+    triggerHaptic("success");
   };
 
   const openCategoryModal = () => {
@@ -330,6 +334,7 @@ export default function ExpensesPage() {
       return;
     }
     toast.success(categoryForm.id ? "Category updated" : "Category created");
+    triggerHaptic("success");
     const catRes = await fetch("/api/categories");
     const catData = await catRes.json();
     setCategories(Array.isArray(catData) ? catData : []);
@@ -343,6 +348,7 @@ export default function ExpensesPage() {
       return;
     }
     toast.success("Category deleted");
+    triggerHaptic("warning");
     const catRes = await fetch("/api/categories");
     const catData = await catRes.json();
     setCategories(Array.isArray(catData) ? catData : []);
@@ -376,6 +382,7 @@ export default function ExpensesPage() {
       toast.success(
         `Imported ${data.imported} txn • matched ${data.matchedExisting} • categorized ${data.categorized || 0} • skipped ${data.skipped}`
       );
+      triggerHaptic("success");
       setImportForm({ accountId: "", csvText: "" });
       setImportFile(null);
       setImportFileName("");
@@ -521,9 +528,10 @@ export default function ExpensesPage() {
   if (loading) {
     return (
       <div className="p-4 space-y-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-16 w-full" />
-        ))}
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-20 w-full" />
       </div>
     );
   }
@@ -547,7 +555,7 @@ export default function ExpensesPage() {
       <div className="flex gap-3">
         <Card className="flex-1">
           <CardContent className="p-3 text-center">
-            <p className="text-[10px] text-muted-foreground">Income</p>
+            <p className="text-xs text-muted-foreground">Income</p>
             <p className="text-base sm:text-lg font-bold text-success">
               {formatCurrency(totalIncome, "INR", true)}
             </p>
@@ -555,7 +563,7 @@ export default function ExpensesPage() {
         </Card>
         <Card className="flex-1">
           <CardContent className="p-3 text-center">
-            <p className="text-[10px] text-muted-foreground">Expenses</p>
+            <p className="text-xs text-muted-foreground">Expenses</p>
             <p className="text-base sm:text-lg font-bold text-destructive">
               {formatCurrency(totalExpense, "INR", true)}
             </p>
@@ -637,12 +645,14 @@ export default function ExpensesPage() {
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
+          className="w-full max-w-full"
         />
         <Input
           label="To"
           type="date"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
+          className="w-full max-w-full"
         />
       </div>
 
@@ -704,9 +714,9 @@ export default function ExpensesPage() {
                           </p>
                           {txn.description &&
                             (recurringByDescription.get(txn.description.trim().toLowerCase()) || 0) >= 3 && (
-                              <p className="text-[10px] text-primary/80">Recurring pattern</p>
+                              <p className="text-xs text-primary/80">Recurring pattern</p>
                             )}
-                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground flex-wrap">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
                             <Calendar className="w-3 h-3 shrink-0" />
                             <span>{formatDateTime(txn.date)}</span>
                             {txn.category && (
@@ -742,14 +752,14 @@ export default function ExpensesPage() {
                         </p>
                         <button
                           onClick={() => openEdit(txn)}
-                          className="mr-2 inline-flex items-center gap-1 text-[10px] text-primary/70 hover:text-primary"
+                          className="mr-2 inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary"
                         >
                           <Pencil className="w-3 h-3" />
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(txn.id)}
-                          className="text-[10px] text-destructive/60 hover:text-destructive"
+                          className="text-xs text-destructive/60 hover:text-destructive"
                         >
                           Delete
                         </button>
@@ -763,7 +773,7 @@ export default function ExpensesPage() {
         </AnimatePresence>
       )}
       {hasMore && (
-        <Button variant="outline" className="w-full" onClick={() => setPage((p) => p + 1)}>
+        <Button variant="outline" size="sm" className="w-full" onClick={() => setPage((p) => p + 1)}>
           Load more transactions
         </Button>
       )}
@@ -827,7 +837,7 @@ export default function ExpensesPage() {
                 <div key={c.id} className="flex items-center justify-between gap-2 rounded-xl border border-border/50 p-2">
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{c.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{c.type}</p>
+                    <p className="text-xs text-muted-foreground">{c.type}</p>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
@@ -850,7 +860,7 @@ export default function ExpensesPage() {
                       onClick={() => deleteCategory(c.id)}
                       className="p-1.5 rounded text-destructive/70 hover:text-destructive hover:bg-destructive/10"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
@@ -966,6 +976,7 @@ export default function ExpensesPage() {
             type="datetime-local"
             value={formData.date}
             onChange={(e) => setFormData((p) => ({ ...p, date: e.target.value }))}
+            className="w-full max-w-full"
           />
           <Button onClick={handleAdd} className="w-full" disabled={!formData.amount}>
             Add Transaction
@@ -1145,6 +1156,7 @@ export default function ExpensesPage() {
             type="datetime-local"
             value={editFormData.date}
             onChange={(e) => setEditFormData((p) => ({ ...p, date: e.target.value }))}
+            className="w-full max-w-full"
           />
           <Button onClick={handleEditSave} className="w-full" disabled={!editFormData.amount}>
             Save Changes

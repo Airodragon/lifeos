@@ -468,7 +468,7 @@ export default function SIPsPage() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Card>
               <CardContent className="p-3">
                 <p className="text-[10px] text-muted-foreground">Total Invested</p>
@@ -769,6 +769,7 @@ export default function SIPsPage() {
               type="date"
               value={form.startDate}
               onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
+              className="w-full max-w-full"
             />
           </div>
           <Input
@@ -789,6 +790,7 @@ export default function SIPsPage() {
                   type="date"
                   value={manualInstallmentForm.dueDate}
                   onChange={(e) => setManualInstallmentForm((p) => ({ ...p, dueDate: e.target.value }))}
+                  className="w-full max-w-full"
                 />
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Status</label>
@@ -892,7 +894,7 @@ export default function SIPsPage() {
         ) : (
           <div className="space-y-4">
             <Card>
-              <CardContent className="p-3 grid grid-cols-2 gap-2 text-xs">
+              <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 <div>
                   <p className="text-muted-foreground">Invested</p>
                   <p className="font-semibold">{formatCurrency(toDecimal(details.totalInvested))}</p>
@@ -965,6 +967,7 @@ export default function SIPsPage() {
                     type="date"
                     value={detailInstallmentForm.dueDate}
                     onChange={(e) => setDetailInstallmentForm((p) => ({ ...p, dueDate: e.target.value }))}
+                    className="w-full max-w-full"
                   />
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium">Status</label>

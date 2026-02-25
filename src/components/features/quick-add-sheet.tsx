@@ -126,7 +126,7 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center px-1.5 sm:px-3">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -139,7 +139,7 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="relative w-full max-w-lg bg-card rounded-t-2xl border-t border-border/50 shadow-xl pb-[env(safe-area-inset-bottom)]"
+            className="relative w-full max-w-[calc(100vw-0.75rem)] sm:max-w-lg bg-card rounded-t-2xl border-t border-border/50 shadow-xl pb-[env(safe-area-inset-bottom)] max-h-[85vh] overflow-y-auto overflow-x-hidden overscroll-contain"
           >
             <div className="flex items-center justify-between p-4 pb-2">
               <h2 className="text-lg font-semibold">Quick Add</h2>
@@ -279,6 +279,7 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
                 type="datetime-local"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
+                className="w-full max-w-full"
               />
 
               <Button

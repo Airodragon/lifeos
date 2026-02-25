@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import {
   Landmark,
   TrendingUp,
@@ -23,6 +24,7 @@ import {
   Repeat,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { readRecentPages, type RecentPageItem } from "@/lib/ui-preferences";
 
 const sections = [
   {
@@ -62,9 +64,38 @@ const sections = [
 ];
 
 export default function MorePage() {
+  const [recentPages] = useState<RecentPageItem[]>(readRecentPages);
+
+  const recentItems = useMemo(
+    () =>
+      recentPages
+        .filter((row) => row.href !== "/more")
+        .slice(0, 4),
+    [recentPages]
+  );
+
   return (
     <div className="p-4 space-y-5 pb-6">
       <h2 className="text-lg font-semibold">More</h2>
+      {recentItems.length > 0 && (
+        <div>
+          <p className="text-xs text-muted-foreground font-medium mb-2 px-1">Recent</p>
+          <Card>
+            <CardContent className="p-0 divide-y divide-border/40">
+              {recentItems.map((item) => (
+                <Link
+                  key={`${item.href}-${item.at}`}
+                  href={item.href}
+                  className="flex items-center justify-between gap-3 p-3 hover:bg-muted/50 transition-colors"
+                >
+                  <p className="text-sm font-medium truncate">{item.label}</p>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                </Link>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      )}
       {sections.map((section) => (
         <div key={section.title}>
           <p className="text-xs text-muted-foreground font-medium mb-2 px-1">{section.title}</p>
@@ -76,14 +107,14 @@ export default function MorePage() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="flex items-center gap-3 p-3.5 hover:bg-muted/50 transition-colors"
+                    className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors"
                   >
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${item.color}`}>
                       <Icon className="w-4.5 h-4.5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{item.label}</p>
-                      <p className="text-[10px] text-muted-foreground">{item.desc}</p>
+                      <p className="text-xs text-muted-foreground">{item.desc}</p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </Link>
