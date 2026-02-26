@@ -506,8 +506,8 @@ export default function DashboardPage() {
   }
 
   const nw = netWorthData;
-  const investGain = nw?.breakdown.investmentGain || 0;
-  const investGainPercent = nw?.breakdown.investmentCost
+  const investGain = nw?.breakdown?.investmentGain || 0;
+  const investGainPercent = nw?.breakdown?.investmentCost
     ? (investGain / nw.breakdown.investmentCost) * 100
     : 0;
   const savingsRate = monthIncome > 0 ? ((monthIncome - monthExpense) / monthIncome) * 100 : 0;
@@ -757,7 +757,7 @@ export default function DashboardPage() {
               <TrendingUp className="w-5 h-5 mx-auto text-success mb-1" />
               <p className="text-xs text-muted-foreground">Investments</p>
               <p className="text-xs sm:text-sm font-bold">
-                {formatCurrency(nw?.breakdown.investments || 0, "INR", true)}
+                {formatCurrency(nw?.breakdown?.investments || 0, "INR", true)}
               </p>
               {investGainPercent !== 0 && (
                 <p
@@ -776,7 +776,7 @@ export default function DashboardPage() {
               <Wallet className="w-5 h-5 mx-auto text-warning mb-1" />
               <p className="text-xs text-muted-foreground">Assets</p>
               <p className="text-xs sm:text-sm font-bold">
-                {formatCurrency(nw?.breakdown.offlineAssets || 0, "INR", true)}
+                {formatCurrency(nw?.breakdown?.offlineAssets || 0, "INR", true)}
               </p>
             </CardContent>
           </Card>
