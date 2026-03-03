@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { formatCurrency } from "@/lib/utils";
+import { useChartColors } from "@/hooks/use-chart-colors";
 
 interface LineChartProps {
   data: Record<string, unknown>[];
@@ -25,25 +26,28 @@ export function LineChart({
   data,
   dataKey,
   xAxisKey = "date",
-  color = "#22c55e",
+  color,
   height = 200,
   showGrid = false,
   currency = "INR",
 }: LineChartProps) {
+  const { primary, mutedForeground, border } = useChartColors();
+  const lineColor = color ?? primary;
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <RechartsLineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
         {showGrid && (
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <CartesianGrid strokeDasharray="3 3" stroke={border} />
         )}
         <XAxis
           dataKey={xAxisKey}
-          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+          tick={{ fontSize: 11, fill: mutedForeground }}
           axisLine={false}
           tickLine={false}
         />
         <YAxis
-          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+          tick={{ fontSize: 11, fill: mutedForeground }}
           axisLine={false}
           tickLine={false}
           tickFormatter={(v) => formatCurrency(v, currency, true)}
@@ -64,7 +68,7 @@ export function LineChart({
         <Line
           type="monotone"
           dataKey={dataKey}
-          stroke={color}
+          stroke={lineColor}
           strokeWidth={2}
           dot={false}
           activeDot={{ r: 4, strokeWidth: 0 }}

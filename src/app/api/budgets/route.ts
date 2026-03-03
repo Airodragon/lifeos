@@ -36,6 +36,7 @@ export async function GET(req: Request) {
       ...b,
       amount: Number(b.amount),
       spent: spendingMap.get(b.categoryId) || 0,
+      rollover: b.rollover,
     }));
 
     return NextResponse.json(result);
@@ -58,13 +59,14 @@ export async function POST(req: Request) {
           year: body.year,
         },
       },
-      update: { amount: body.amount },
+      update: { amount: body.amount, rollover: body.rollover ?? false },
       create: {
         userId: user.id,
         categoryId: body.categoryId,
         amount: body.amount,
         month: body.month,
         year: body.year,
+        rollover: body.rollover ?? false,
       },
       include: { category: true },
     });

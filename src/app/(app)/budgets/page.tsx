@@ -18,6 +18,7 @@ interface BudgetItem {
   amount: number;
   spent: number;
   categoryId: string;
+  rollover: boolean;
   category: { id: string; name: string; icon: string | null; color: string | null };
 }
 
@@ -36,7 +37,22 @@ export default function BudgetsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
-  const [form, setForm] = useState({ categoryId: "", amount: "" });
+  const [form, setForm] = useState({ categoryId: "", amount: "", rollover: false });
+
+  const toggleRollover = async (budget: BudgetItem) => {
+    await fetch("/api/budgets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        categoryId: budget.categoryId,
+        amount: budget.amount,
+        month,
+        year,
+        rollover: !budget.rollover,
+      }),
+    });
+    fetchData();
+  };
 
   const fetchData = async () => {
     const [budgetRes, catRes] = await Promise.all([
@@ -64,10 +80,11 @@ export default function BudgetsPage() {
         amount: parseFloat(form.amount),
         month,
         year,
+        rollover: form.rollover,
       }),
     });
     setShowAdd(false);
-    setForm({ categoryId: "", amount: "" });
+    setForm({ categoryId: "", amount: "", rollover: false });
     fetchData();
     toast.success("Budget set");
   };
@@ -162,11 +179,26 @@ export default function BudgetsPage() {
                       </div>
                     </div>
                     <Progress value={b.spent} max={b.amount} size="sm" />
-                    {isOver && (
-                      <p className="text-[10px] text-destructive mt-1">
-                        Over by {formatCurrency(b.spent - b.amount)}
-                      </p>
-                    )}
+                    <div className="flex items-center justify-between mt-1">
+                      {isOver ? (
+                        <p className="text-[10px] text-destructive">
+                          Over by {formatCurrency(b.spent - b.amount)}
+                        </p>
+                      ) : (
+                        <span />
+                      )}
+                      <button
+                        onClick={() => toggleRollover(b)}
+                        className={`text-[10px] flex items-center gap-1 ${
+                          b.rollover ? "text-primary" : "text-muted-foreground"
+                        }`}
+                      >
+                        <span className={`w-5 h-2.5 rounded-full inline-block transition-colors ${
+                          b.rollover ? "bg-primary" : "bg-muted-foreground/30"
+                        }`} />
+                        Rollover
+                      </button>
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -197,6 +229,15 @@ export default function BudgetsPage() {
             onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
             inputMode="decimal"
           />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.rollover}
+              onChange={(e) => setForm((p) => ({ ...p, rollover: e.target.checked }))}
+              className="rounded"
+            />
+            Roll over unspent amount next month
+          </label>
           <Button onClick={handleAdd} className="w-full" disabled={!form.categoryId || !form.amount}>
             Set Budget
           </Button>

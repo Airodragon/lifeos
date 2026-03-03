@@ -271,12 +271,14 @@ model Budget {
   amount     Decimal @db.Decimal(15, 2)
   month      Int
   year       Int
+  rollover   Boolean @default(false)
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@unique([userId, categoryId, month, year])
 }
+
 
 model Liability {
   id           String    @id @default(cuid())

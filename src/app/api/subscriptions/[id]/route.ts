@@ -99,18 +99,64 @@ export async function PUT(
 
       if (action === "mark_paid" || action === "skip") {
         if (cadence === "one_time") {
-          const updated = await prisma.subscription.update({
-            where: { id },
-            data: { active: false },
-            include: { paymentAccount: { select: { id: true, name: true, type: true } } },
+          const updated = await prisma.$transaction(async (tx) => {
+            const sub = await tx.subscription.update({
+              where: { id },
+              data: { active: false },
+              include: { paymentAccount: { select: { id: true, name: true, type: true } } },
+            });
+            if (action === "mark_paid") {
+              await tx.transaction.create({
+                data: {
+                  userId: existing.userId,
+                  amount: existing.amount,
+                  type: "expense",
+                  description: `${existing.name} (subscription)`,
+                  date: new Date(),
+                  source: "subscription",
+                  accountId: existing.paymentAccountId || undefined,
+                  tags: ["subscription"],
+                },
+              });
+              if (existing.paymentAccountId) {
+                await tx.account.update({
+                  where: { id: existing.paymentAccountId },
+                  data: { balance: { decrement: Number(existing.amount) } },
+                });
+              }
+            }
+            return sub;
           });
           return NextResponse.json(updated);
         }
         const nextDueDate = computeNextDueAfterPayment(new Date(existing.nextDueDate), cadence);
-        const updated = await prisma.subscription.update({
-          where: { id },
-          data: { nextDueDate, active: true },
-          include: { paymentAccount: { select: { id: true, name: true, type: true } } },
+        const updated = await prisma.$transaction(async (tx) => {
+          const sub = await tx.subscription.update({
+            where: { id },
+            data: { nextDueDate, active: true },
+            include: { paymentAccount: { select: { id: true, name: true, type: true } } },
+          });
+          if (action === "mark_paid") {
+            await tx.transaction.create({
+              data: {
+                userId: existing.userId,
+                amount: existing.amount,
+                type: "expense",
+                description: `${existing.name} (subscription)`,
+                date: new Date(),
+                source: "subscription",
+                accountId: existing.paymentAccountId || undefined,
+                tags: ["subscription"],
+              },
+            });
+            if (existing.paymentAccountId) {
+              await tx.account.update({
+                where: { id: existing.paymentAccountId },
+                data: { balance: { decrement: Number(existing.amount) } },
+              });
+            }
+          }
+          return sub;
         });
         return NextResponse.json(updated);
       }

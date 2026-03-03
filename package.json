@@ -13,6 +13,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
+    "db:reset": "npx tsx prisma/reset.ts",
     "db:reset:data": "npx tsx scripts/reset-user-data.ts --force"
   },
   "prisma": {

@@ -12,6 +12,7 @@ import {
   Pencil,
   ArrowLeftRight,
   Upload,
+  Download,
   Tag,
   Trash2,
 } from "lucide-react";
@@ -419,27 +420,17 @@ export default function ExpensesPage() {
   };
 
   const exportTransactionsCsv = () => {
-    const rows = [
-      ["Date", "Type", "Description", "Category", "Account", "Amount"],
-      ...filtered.map((txn) => [
-        new Date(txn.date).toISOString(),
-        txn.type,
-        txn.description || "",
-        txn.category?.name || "",
-        txn.account?.name || "",
-        txn.amount,
-      ]),
-    ];
-    const csv = rows
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
+    const params = new URLSearchParams();
+    if (activeTab !== "all") params.set("type", activeTab);
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    const url = `/api/export/csv${params.toString() ? `?${params.toString()}` : ""}`;
     const a = document.createElement("a");
     a.href = url;
-    a.download = `lifeos-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = ``;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   };
 
   const filtered = transactions;
@@ -662,6 +653,7 @@ export default function ExpensesPage() {
           Import Statement CSV/PDF
         </Button>
         <Button variant="outline" size="sm" onClick={exportTransactionsCsv}>
+          <Download className="w-4 h-4 mr-1" />
           Export CSV
         </Button>
         <Button variant="outline" size="sm" onClick={openCategoryModal}>

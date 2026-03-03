@@ -5,6 +5,8 @@
     { "path": "/api/cron/refresh-prices", "schedule": "0 9 * * 1-5" },
     { "path": "/api/cron/sync-sips", "schedule": "0 7 * * *" },
     { "path": "/api/cron/evaluate-price-alerts", "schedule": "0 8 * * *" },
-    { "path": "/api/cron/evaluate-subscriptions", "schedule": "0 10 * * *" }
+    { "path": "/api/cron/evaluate-subscriptions", "schedule": "0 10 * * *" },
+    { "path": "/api/cron/auto-log-emis", "schedule": "30 0 * * *" },
+    { "path": "/api/cron/budget-rollover", "schedule": "0 1 1 * *" }
   ]
 }

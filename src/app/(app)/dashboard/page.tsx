@@ -20,6 +20,7 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
+  CalendarDays,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -151,6 +152,18 @@ interface DashboardSnapshot {
   monthExpense: number;
   monthIncome: number;
   cachedAt: string;
+}
+
+interface TrajectoryPoint {
+  month: number;
+  label: string;
+  netWorth: number;
+}
+
+interface TrajectoryData {
+  projection: TrajectoryPoint[];
+  milestones: { now: number; oneYear: number; threeYear: number; fiveYear: number };
+  assumptions: { sipMonthlyContribution: number; investmentCAGR: number };
 }
 
 type SectionKey =
@@ -288,6 +301,10 @@ export default function DashboardPage() {
   const [sectionPrefs, setSectionPrefs] = useState<SectionPrefs>(readSectionPrefs);
   const [offlineSnapshotAt, setOfflineSnapshotAt] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
+  const [trajectory, setTrajectory] = useState<TrajectoryData | null>(null);
+  const [trajectoryView, setTrajectoryView] = useState<"1Y" | "3Y" | "5Y">("5Y");
+  const [todayIncome, setTodayIncome] = useState(0);
+  const [todayExpense, setTodayExpense] = useState(0);
 
   useEffect(() => {
     const now = new Date();
@@ -440,13 +457,23 @@ export default function DashboardPage() {
     });
   }, []);
 
+  // Fetch today's transactions and trajectory in parallel
   useEffect(() => {
-    fetch("/api/watchlist")
-      .then((r) => r.json())
-      .then((rows) => {
-        if (Array.isArray(rows)) setWatchlist(rows.slice(0, 10));
-      })
-      .catch(() => {});
+    const now = new Date();
+    const todayIST = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    Promise.all([
+      fetch(`/api/transactions?startDate=${todayIST}&endDate=${todayIST}&limit=100`)
+        .then((r) => r.json())
+        .catch(() => ({ transactions: [] })),
+      fetch("/api/net-worth/trajectory")
+        .then((r) => r.json())
+        .catch(() => null),
+    ]).then(([todayTxn, traj]) => {
+      const todayRows = todayTxn.transactions || [];
+      setTodayIncome(todayRows.filter((t: Transaction) => t.type === "income").reduce((s: number, t: Transaction) => s + toDecimal(t.amount), 0));
+      setTodayExpense(todayRows.filter((t: Transaction) => t.type === "expense").reduce((s: number, t: Transaction) => s + toDecimal(t.amount), 0));
+      if (traj && !traj.error) setTrajectory(traj);
+    });
   }, []);
 
   useEffect(() => {
@@ -511,11 +538,22 @@ export default function DashboardPage() {
     ? (investGain / nw.breakdown.investmentCost) * 100
     : 0;
   const savingsRate = monthIncome > 0 ? ((monthIncome - monthExpense) / monthIncome) * 100 : 0;
-  const netWorthTrend = [
-    { month: "M-2", NetWorth: (nw?.netWorth || 0) * 0.94 },
-    { month: "M-1", NetWorth: (nw?.netWorth || 0) * 0.98 },
-    { month: "Now", NetWorth: nw?.netWorth || 0 },
-  ];
+
+  // Build trajectory chart data based on selected view
+  const trajectoryMonths = trajectoryView === "1Y" ? 12 : trajectoryView === "3Y" ? 36 : 60;
+  const netWorthTrend = trajectory
+    ? trajectory.projection.filter((p) => p.month <= trajectoryMonths).map((p) => ({
+        month: p.label,
+        NetWorth: p.netWorth,
+      }))
+    : [
+        { month: "M-2", NetWorth: (nw?.netWorth || 0) * 0.94 },
+        { month: "M-1", NetWorth: (nw?.netWorth || 0) * 0.98 },
+        { month: "Now", NetWorth: nw?.netWorth || 0 },
+      ];
+
+  const todayHasActivity = todayIncome > 0 || todayExpense > 0;
+  const duesUrgentCount = dueNudges.filter((d) => d.urgency <= 0).length;
   const hiddenCount = Object.values(sectionPrefs).filter((isVisible) => !isVisible).length;
   const offlineSnapshotLabel = offlineSnapshotAt
     ? `Showing offline snapshot from ${getRelativeTime(offlineSnapshotAt)}`
@@ -575,6 +613,47 @@ export default function DashboardPage() {
           </Link>
         </div>
       </motion.div>
+
+      {/* Today's Summary Card */}
+      {(todayHasActivity || duesUrgentCount > 0) && (
+        <motion.div variants={fadeUp}>
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <CalendarDays className="w-4 h-4 text-primary" />
+                <span className="text-xs font-semibold text-primary">
+                  Today, {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {todayIncome > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-success shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Income</p>
+                      <p className="text-sm font-semibold text-success">{formatCurrency(todayIncome, "INR", true)}</p>
+                    </div>
+                  </div>
+                )}
+                {todayExpense > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <TrendingDown className="w-3.5 h-3.5 text-destructive shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Spent</p>
+                      <p className="text-sm font-semibold text-destructive">{formatCurrency(todayExpense, "INR", true)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {duesUrgentCount > 0 && (
+                <p className="text-xs text-warning mt-2">
+                  🔔 {duesUrgentCount} due payment{duesUrgentCount > 1 ? "s" : ""} need attention today
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       <motion.div variants={fadeUp}>
         <div className="flex justify-end">
@@ -848,10 +927,49 @@ export default function DashboardPage() {
       <motion.div variants={fadeUp}>
         <Card>
           <CardHeader>
-            <CardTitle>Net Worth Timeline</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Net Worth Projection</CardTitle>
+              <div className="flex gap-1">
+                {(["1Y", "3Y", "5Y"] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setTrajectoryView(v)}
+                    className={`text-xs px-2 py-1 rounded-lg transition-colors ${
+                      trajectoryView === v
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {trajectory && (
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {[
+                  { label: "1 Year", value: trajectory.milestones.oneYear },
+                  { label: "3 Years", value: trajectory.milestones.threeYear },
+                  { label: "5 Years", value: trajectory.milestones.fiveYear },
+                ].map((m) => (
+                  <div key={m.label} className="text-center">
+                    <p className="text-xs text-muted-foreground">{m.label}</p>
+                    <p className="text-xs font-semibold">{formatCurrency(m.value, "INR", true)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <LineChart data={netWorthTrend} dataKey="NetWorth" xAxisKey="month" color="#3b82f6" height={180} />
+            {trajectory && (
+              <p className="text-xs text-muted-foreground/60 mt-1 text-center">
+                Assumes {trajectory.assumptions.investmentCAGR}% growth on investments
+                {trajectory.assumptions.sipMonthlyContribution > 0
+                  ? ` + ₹${(trajectory.assumptions.sipMonthlyContribution).toLocaleString("en-IN")}/mo SIP`
+                  : ""}
+              </p>
+            )}
           </CardContent>
         </Card>
       </motion.div>
