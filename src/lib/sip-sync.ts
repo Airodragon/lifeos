@@ -85,49 +85,30 @@ export async function syncSipsForUser(userId: string) {
     let currentPrice = 0;
     let sourceLabel = "market";
     if (sip.pricingSource === "mf_nav") {
-      if (!sip.schemeCode) {
-        skipped++;
-        reasons.missingMapping++;
-        continue;
-      }
+      if (!sip.schemeCode) { skipped++; reasons.missingMapping++; continue; }
       const nav = await getLatestMfNav(sip.schemeCode);
-      if (!nav) {
-        skipped++;
-        reasons.sourceUnavailable++;
-        continue;
-      }
+      if (!nav) { skipped++; reasons.sourceUnavailable++; continue; }
       currentPrice = nav.nav;
       sourceLabel = "mf_nav";
     } else {
-      if (!sip.symbol) {
-        skipped++;
-        reasons.missingMapping++;
-        continue;
-      }
+      if (!sip.symbol) { skipped++; reasons.missingMapping++; continue; }
       const quote = quotes.get(sip.symbol);
-      if (!quote) {
-        skipped++;
-        reasons.sourceUnavailable++;
-        continue;
-      }
+      if (!quote) { skipped++; reasons.sourceUnavailable++; continue; }
       currentPrice = quote.price;
     }
-    if (!currentPrice || currentPrice <= 0) {
-      skipped++;
-      reasons.invalidPrice++;
-      continue;
-    }
+    if (!currentPrice || currentPrice <= 0) { skipped++; reasons.invalidPrice++; continue; }
 
-    const due =
-      sip.status === "active" &&
+    // Would an installment have been due today?
+    const wouldBeDue =
       (!sip.endDate || startOfDay(now) <= startOfDay(sip.endDate)) &&
-      isSipDue(
-        sip.frequency,
-        sip.sipDate,
-        sip.startDate,
-        sip.lastDebitDate,
-        now
-      );
+      isSipDue(sip.frequency, sip.sipDate, sip.startDate, sip.lastDebitDate, now);
+
+    const isActive = sip.status === "active";
+    const isPaused = sip.status === "paused";
+    const due = isActive && wouldBeDue;
+    // Log a skipped installment for paused SIPs so the timeline has no invisible gaps
+    const shouldLogSkipped = isPaused && wouldBeDue;
+
     const installmentAmount = Number(sip.amount);
     const addUnits = due ? installmentAmount / currentPrice : 0;
 
@@ -141,7 +122,26 @@ export async function syncSipsForUser(userId: string) {
 
     const nextInvested = paidInvested + (due ? installmentAmount : 0);
     const nextUnits = paidUnits + (due ? addUnits : 0);
+    // currentValue = all paid units × live price, giving accurate valuation at all times
     const nextCurrentValue = nextUnits > 0 ? nextUnits * currentPrice : Number(sip.currentValue || 0);
+
+    const newInstallments = [
+      ...(due ? [{
+        userId, dueDate: now, status: "paid" as const,
+        amount: installmentAmount, navOrPrice: currentPrice,
+        units: addUnits, isManual: false, note: "Auto-posted by SIP sync",
+      }] : []),
+      ...(shouldLogSkipped ? [{
+        userId, dueDate: now, status: "skipped" as const,
+        amount: installmentAmount, navOrPrice: currentPrice,
+        units: 0, isManual: false, note: "SIP paused — auto-logged as skipped",
+      }] : []),
+    ];
+
+    const newChangeLogs = [
+      { userId, action: "valuation_sync", field: sourceLabel, fromValue: String(sip.lastPrice || ""), toValue: String(currentPrice) },
+      ...(shouldLogSkipped ? [{ userId, action: "installment_skipped", note: "Installment skipped — SIP is paused" }] : []),
+    ];
 
     await prisma.sIP.update({
       where: { id: sip.id },
@@ -151,38 +151,15 @@ export async function syncSipsForUser(userId: string) {
         currentValue: nextCurrentValue,
         lastPrice: currentPrice,
         lastUpdated: now,
-        ...(due ? { lastDebitDate: now } : {}),
+        ...((due || shouldLogSkipped) ? { lastDebitDate: now } : {}),
         ...(sip.pricingSource === "mf_nav" ? { schemeName: sip.schemeName || sip.fundName } : {}),
-        changeLogs: {
-          create: {
-            userId,
-            action: "valuation_sync",
-            field: sourceLabel,
-            fromValue: String(sip.lastPrice || ""),
-            toValue: String(currentPrice),
-          },
-        },
-        ...(due
-          ? {
-              installments: {
-                create: {
-                  userId,
-                  dueDate: now,
-                  status: "paid",
-                  amount: installmentAmount,
-                  navOrPrice: currentPrice,
-                  units: addUnits,
-                  isManual: false,
-                  note: "Auto-posted by SIP sync",
-                },
-              },
-            }
-          : {}),
+        changeLogs: { create: newChangeLogs },
+        ...(newInstallments.length > 0 ? { installments: { create: newInstallments } } : {}),
       },
     });
 
     priceUpdated++;
-    if (due) installmentsPosted++;
+    if (due || shouldLogSkipped) installmentsPosted++;
   }
 
   return { priceUpdated, installmentsPosted, skipped, reasons, total: sips.length };

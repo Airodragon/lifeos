@@ -43,10 +43,31 @@ export async function searchMfSchemes(query: string, limit = 12): Promise<MfSche
   const q = query.trim().toLowerCase();
   if (!q) return [];
   const schemes = await listMfSchemes();
-  return schemes
-    .filter((s) => s.schemeName.toLowerCase().includes(q) || s.schemeCode.includes(q))
-    .slice(0, limit);
+
+  type Ranked = { scheme: MfScheme; score: number };
+  const ranked: Ranked[] = [];
+
+  for (const s of schemes) {
+    const name = s.schemeName.toLowerCase();
+    const code = s.schemeCode.toLowerCase();
+
+    let score = 0;
+    if (name === q || code === q) score = 100;              // exact match
+    else if (name.startsWith(q)) score = 80;                // name starts with query
+    else if (code.startsWith(q)) score = 70;                // code starts with query
+    else if (name.includes(` ${q}`)) score = 60;            // query is a word in name
+    else if (name.includes(q)) score = 40;                  // name contains query
+    else if (code.includes(q)) score = 20;                  // code contains query
+
+    if (score > 0) ranked.push({ scheme: s, score });
+  }
+
+  return ranked
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((r) => r.scheme);
 }
+
 
 export async function getLatestMfNav(schemeCode: string): Promise<MfNavQuote | null> {
   const code = String(schemeCode || "").trim();

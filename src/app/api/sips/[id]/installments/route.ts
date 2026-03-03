@@ -23,15 +23,19 @@ const updateSchema = z.object({
 });
 
 function recomputeTotals(
-  rows: Array<{ status: string; amount: unknown; units: unknown; navOrPrice: unknown }>
+  rows: Array<{ status: string; amount: unknown; units: unknown; navOrPrice: unknown }>,
+  lastLivePrice?: number
 ) {
   const paidRows = rows.filter((r) => r.status === "paid");
   const totalInvested = paidRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const units = paidRows.reduce((sum, row) => sum + Number(row.units || 0), 0);
-  const latestPrice = paidRows.length
-    ? Number(paidRows[paidRows.length - 1].navOrPrice || 0)
-    : 0;
-  const currentValue = units * latestPrice;
+  // Use live price if available (from lastPrice on the SIP), otherwise fall back to
+  // the most recent buy-time NAV. This prevents historical entries from resetting
+  // the current value to an old price.
+  const effectivePrice = lastLivePrice && lastLivePrice > 0
+    ? lastLivePrice
+    : paidRows.length ? Number(paidRows[paidRows.length - 1].navOrPrice || 0) : 0;
+  const currentValue = units * effectivePrice;
   return { totalInvested, units, currentValue };
 }
 
@@ -90,7 +94,7 @@ export async function POST(
     });
 
     const allRows = [...sip.installments, created];
-    const totals = recomputeTotals(allRows);
+    const totals = recomputeTotals(allRows, sip.lastPrice ? Number(sip.lastPrice) : undefined);
     await prisma.sIP.update({
       where: { id: sip.id },
       data: {
@@ -152,7 +156,7 @@ export async function PATCH(
       where: { sipId: sip.id },
       orderBy: { dueDate: "asc" },
     });
-    const totals = recomputeTotals(rows);
+    const totals = recomputeTotals(rows, sip.lastPrice ? Number(sip.lastPrice) : undefined);
     await prisma.sIP.update({
       where: { id: sip.id },
       data: {

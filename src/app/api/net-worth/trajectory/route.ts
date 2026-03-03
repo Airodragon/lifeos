@@ -58,7 +58,7 @@ export async function GET() {
     const liabilityTotal = liabilities.reduce((s, l) => s + Number(l.outstanding), 0);
     const creditCardDue = accounts
       .filter((a) => a.type === "credit_card")
-      .reduce((s, a) => s + Math.abs(Number(a.balance)), 0);
+      .reduce((s, a) => s + Math.max(0, -Number(a.balance)), 0);
     const emiMonthly = liabilities.reduce((s, l) => s + Number(l.emiAmount || 0), 0);
 
     // Growth assumptions

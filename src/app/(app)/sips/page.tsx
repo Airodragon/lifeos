@@ -175,7 +175,8 @@ export default function SIPsPage() {
     return () => clearInterval(timer);
   }, [fetchSips]);
 
-  const refreshDetails = useCallback(async (id: string) => {
+  const refreshDetails = useCallback(async (sipOrId: SIP | string) => {
+    const id = typeof sipOrId === "string" ? sipOrId : sipOrId.id;
     setDetailLoading(true);
     const res = await fetch(`/api/sips/${id}/details`);
     const data = await res.json();
@@ -400,6 +401,58 @@ export default function SIPsPage() {
     setDetailInstallmentForm((p) => ({ ...p, amount: "", navOrPrice: "", units: "", note: "" }));
     await refreshDetails(showDetails.id);
     await fetchSips();
+    // Trigger background live price refresh so currentValue uses latest NAV
+    fetch("/api/sips/refresh", { method: "POST" }).then(() => fetchSips()).catch(() => null);
+  };
+
+  // Build a complete monthly slot timeline from SIP startDate to today
+  const buildTimeline = (sip: SIP, installments: SIPInstallment[]) => {
+    const start = new Date(sip.startDate);
+    const now = new Date();
+    const slots: Array<{
+      year: number; month: number; label: string;
+      entry: SIPInstallment | null;
+    }> = [];
+
+    let y = start.getFullYear();
+    let m = start.getMonth();
+    const endY = now.getFullYear();
+    const endM = now.getMonth();
+
+    while (y < endY || (y === endY && m <= endM)) {
+      const label = new Date(y, m, 1).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+      const entry = installments.find((i) => {
+        const d = new Date(i.dueDate);
+        return d.getFullYear() === y && d.getMonth() === m;
+      }) || null;
+      slots.push({ year: y, month: m, label, entry });
+      m++;
+      if (m > 11) { m = 0; y++; }
+    }
+    return slots.reverse(); // newest first
+  };
+
+  const quickMarkInstallment = async (sip: SIP, year: number, month: number, status: InstallmentStatus) => {
+    const dueDay = sip.sipDate <= 28 ? sip.sipDate : 1;
+    const dueDate = new Date(year, month, dueDay).toISOString().split("T")[0];
+    await fetch(`/api/sips/${sip.id}/installments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dueDate, status, amount: parseFloat(sip.amount) }),
+    });
+    await refreshDetails(sip);
+    await fetchSips();
+  };
+
+
+  const markAllMissingSkipped = async () => {
+    if (!showDetails || !details) return;
+    const timeline = buildTimeline(showDetails, details.installments);
+    const missing = timeline.filter((s) => !s.entry);
+    for (const slot of missing) {
+      await quickMarkInstallment(showDetails, slot.year, slot.month, "skipped");
+    }
+    toast.success(`Marked ${missing.length} missing months as skipped`);
   };
 
   const markInstallmentStatus = async (installmentId: string, status: InstallmentStatus) => {
@@ -409,7 +462,7 @@ export default function SIPsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ installmentId, status }),
     });
-    await refreshDetails(showDetails.id);
+    await refreshDetails(showDetails);
     await fetchSips();
   };
 
@@ -923,39 +976,84 @@ export default function SIPsPage() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Installment timeline</CardTitle>
+                <CardTitle className="text-sm flex items-center justify-between">
+                  <span>Monthly timeline</span>
+                  <button
+                    onClick={markAllMissingSkipped}
+                    className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                  >
+                    Mark all missing as skipped
+                  </button>
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 max-h-56 overflow-auto">
-                {details.installments.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No installment entries yet.</p>
-                ) : (
-                  details.installments.map((row) => (
-                    <div key={row.id} className="border rounded-lg p-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium">{formatDate(row.dueDate)}</p>
-                        <Badge variant="secondary">{row.status}</Badge>
-                      </div>
-                      <p className="text-muted-foreground">
-                        Amount {formatCurrency(toDecimal(row.amount))} · NAV/Price{" "}
-                        {row.navOrPrice ? formatDecimalRange(toDecimal(row.navOrPrice)) : "—"} · Units{" "}
-                        {row.units ? formatDecimalRange(toDecimal(row.units)) : "—"}
-                      </p>
-                      <div className="flex gap-1 mt-1">
-                        {(["paid", "skipped", "missed", "due"] as InstallmentStatus[]).map((status) => (
+              <CardContent className="space-y-1.5 max-h-72 overflow-auto">
+                {(() => {
+                  const timeline = buildTimeline(showDetails, details.installments);
+                  if (timeline.length === 0) {
+                    return <p className="text-xs text-muted-foreground">No months to show yet.</p>;
+                  }
+                  return timeline.map((slot) => {
+                    const statusColors: Record<string, string> = {
+                      paid: "text-success bg-success/10",
+                      skipped: "text-amber-500 bg-amber-500/10",
+                      missed: "text-destructive bg-destructive/10",
+                      due: "text-primary bg-primary/10",
+                    };
+                    if (slot.entry) {
+                      const row = slot.entry;
+                      return (
+                        <div key={`${slot.year}-${slot.month}`} className="border rounded-lg p-2 text-xs">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="font-medium">{slot.label}</p>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${statusColors[row.status] || "text-muted-foreground bg-muted"}`}>
+                              {row.status}
+                            </span>
+                          </div>
+                          {row.status === "paid" && (
+                            <p className="text-muted-foreground">
+                              {formatCurrency(toDecimal(row.amount))}
+                              {row.navOrPrice ? ` · NAV ${formatDecimalRange(toDecimal(row.navOrPrice))}` : ""}
+                              {row.units ? ` · ${formatDecimalRange(toDecimal(row.units))} units` : ""}
+                            </p>
+                          )}
+                          <div className="flex gap-1 mt-1">
+                            {(["paid", "skipped", "missed"] as InstallmentStatus[]).filter(s => s !== row.status).map((status) => (
+                              <button
+                                key={status}
+                                className="px-2 py-0.5 rounded bg-muted text-[10px] capitalize hover:bg-muted/80"
+                                onClick={() => markInstallmentStatus(row.id, status)}
+                              >
+                                {status}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={`${slot.year}-${slot.month}`} className="border border-dashed border-border/50 rounded-lg p-2 text-xs flex items-center justify-between">
+                        <p className="text-muted-foreground">{slot.label} — <span className="italic">no entry</span></p>
+                        <div className="flex gap-1">
                           <button
-                            key={status}
-                            className="px-2 py-1 rounded bg-muted capitalize"
-                            onClick={() => markInstallmentStatus(row.id, status)}
-                          >
-                            {status}
-                          </button>
-                        ))}
+                            onClick={() => quickMarkInstallment(showDetails, slot.year, slot.month, "paid")}
+                            className="px-2 py-0.5 rounded bg-success/10 text-success text-[10px] hover:bg-success/20"
+                          >paid</button>
+                          <button
+                            onClick={() => quickMarkInstallment(showDetails, slot.year, slot.month, "skipped")}
+                            className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[10px] hover:bg-amber-500/20"
+                          >skip</button>
+                          <button
+                            onClick={() => quickMarkInstallment(showDetails, slot.year, slot.month, "missed")}
+                            className="px-2 py-0.5 rounded bg-destructive/10 text-destructive text-[10px] hover:bg-destructive/20"
+                          >miss</button>
+                        </div>
                       </div>
-                    </div>
-                  ))
-                )}
+                    );
+                  });
+                })()}
               </CardContent>
             </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Add installment</CardTitle>

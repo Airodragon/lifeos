@@ -42,9 +42,11 @@ export async function GET() {
       .filter((a) => a.type !== "credit_card")
       .reduce((sum, a) => sum + Number(a.balance), 0);
 
+    // Credit card due = money actually owed. A negative balance means you spent that amount.
+    // An unused card has balance 0. Math.max(0, -balance) gives 0 for unused, positive for spent.
     const creditCardDue = accounts
       .filter((a) => a.type === "credit_card")
-      .reduce((sum, a) => sum + Math.abs(Number(a.balance)), 0);
+      .reduce((sum, a) => sum + Math.max(0, -Number(a.balance)), 0);
 
     const investmentTotal = investments.reduce(
       (sum, i) =>
