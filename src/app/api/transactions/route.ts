@@ -11,6 +11,7 @@ const createSchema = z.object({
   date: z.string(),
   categoryId: z.string().optional(),
   accountId: z.string().optional(),
+  toAccountId: z.string().optional(),
   tags: z.array(z.string()).optional(),
 });
 
@@ -50,7 +51,7 @@ export async function GET(req: Request) {
     const [transactions, total] = await Promise.all([
       prisma.transaction.findMany({
         where,
-        include: { category: true, account: true },
+        include: { category: true, account: true, toAccount: true },
         orderBy: { date: "desc" },
         skip: (page - 1) * limit,
         take: limit,
@@ -78,7 +79,15 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Account not found" }, { status: 400 });
       }
     }
-
+    if (data.toAccountId && data.type === "transfer") {
+      const toAccount = await prisma.account.findFirst({
+        where: { id: data.toAccountId, userId: user.id },
+        select: { id: true },
+      });
+      if (!toAccount) {
+        return NextResponse.json({ error: "Destination account not found" }, { status: 400 });
+      }
+    }
     const transaction = await prisma.$transaction(async (tx) => {
       const created = await tx.transaction.create({
         data: {
@@ -89,15 +98,26 @@ export async function POST(req: Request) {
           date: parseDateInputAsIST(data.date),
           categoryId: data.categoryId,
           accountId: data.accountId,
+          toAccountId: data.type === "transfer" ? data.toAccountId : undefined,
           tags: data.tags || [],
         },
-        include: { category: true, account: true },
+        include: { category: true, account: true, toAccount: true },
       });
 
       if (data.accountId) {
         await tx.account.update({
           where: { id: data.accountId },
           data: { balance: { increment: accountDelta(data.type, data.amount) } },
+        });
+      }
+      if (data.toAccountId && data.type === "transfer") {
+        await tx.account.update({
+          where: { id: data.toAccountId },
+          // A transfer deducts from the source (expense) and adds to the destination (income).
+          // But our POST type is "transfer". accountDelta returns -amount for transfers.
+          // The source account was reduced by `amount`. 
+          // The destination account should be increased by `amount`.
+          data: { balance: { increment: data.amount } },
         });
       }
       return created;

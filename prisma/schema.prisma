@@ -80,7 +80,8 @@ model Account {
   creditLimit Decimal? @db.Decimal(15, 2)
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
+  transactions Transaction[] @relation("TransactionAccount")
+  incomingTransfers Transaction[] @relation("TransactionToAccount")
   creditCardPaymentsFrom CreditCardPayment[] @relation("PaymentFromAccount")
   creditCardPaymentsTo   CreditCardPayment[] @relation("PaymentToCard")
   subscriptions          Subscription[]
@@ -112,13 +113,15 @@ model Transaction {
   date        DateTime
   source      String   @default("manual")
   emailRef    String?
+  toAccountId String?
   tags        String[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   deletedAt   DateTime?
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account  Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  account  Account?  @relation("TransactionAccount", fields: [accountId], references: [id], onDelete: SetNull)
+  toAccount Account? @relation("TransactionToAccount", fields: [toAccountId], references: [id], onDelete: SetNull)
   category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@index([userId, date])

@@ -45,6 +45,7 @@ interface Transaction {
   date: string;
   category: { id: string; name: string; icon: string | null; color: string | null } | null;
   account: { id: string; name: string } | null;
+  toAccount: { id: string; name: string } | null;
   tags: string[];
 }
 
@@ -131,6 +132,7 @@ export default function ExpensesPage() {
     description: "",
     categoryId: "",
     accountId: "",
+    toAccountId: "",
     date: nowDateTimeInputValueIST(),
   });
   const [editFormData, setEditFormData] = useState({
@@ -140,6 +142,7 @@ export default function ExpensesPage() {
     description: "",
     categoryId: "",
     accountId: "",
+    toAccountId: "",
     date: nowDateTimeInputValueIST(),
   });
   const [categoryForm, setCategoryForm] = useState({
@@ -223,6 +226,7 @@ export default function ExpensesPage() {
         type: parsed.type || prev.type,
         accountId: parsed.accountId || prev.accountId,
         categoryId: parsed.categoryId || prev.categoryId,
+        toAccountId: (parsed as any).toAccountId || prev.toAccountId,
       }));
     } catch {
       // ignore malformed local storage
@@ -240,6 +244,7 @@ export default function ExpensesPage() {
         date: formData.date,
         categoryId: formData.categoryId || undefined,
         accountId: formData.accountId || undefined,
+        toAccountId: formData.type === "transfer" ? (formData.toAccountId || undefined) : undefined,
       }),
     });
     setShowAddModal(false);
@@ -257,6 +262,7 @@ export default function ExpensesPage() {
       description: "",
       categoryId: "",
       accountId: "",
+      toAccountId: "",
       date: nowDateTimeInputValueIST(),
     });
     fetchData();
@@ -278,6 +284,7 @@ export default function ExpensesPage() {
       description: txn.description || "",
       categoryId: txn.category?.id || "",
       accountId: txn.account?.id || "",
+      toAccountId: txn.toAccount?.id || "",
       date: toDateTimeInputValueIST(txn.date),
     });
     setShowEditModal(true);
@@ -295,6 +302,7 @@ export default function ExpensesPage() {
         date: editFormData.date,
         categoryId: editFormData.categoryId || undefined,
         accountId: editFormData.accountId || undefined,
+        toAccountId: editFormData.type === "transfer" ? (editFormData.toAccountId || undefined) : undefined,
       }),
     });
     if (!res.ok) {
@@ -727,7 +735,7 @@ export default function ExpensesPage() {
                             {txn.account && (
                               <>
                                 <span>·</span>
-                                <span className="truncate">{txn.account.name}</span>
+                                <span className="truncate">{txn.type === "transfer" && txn.toAccount ? `${txn.account.name} → ${txn.toAccount.name}` : txn.account.name}</span>
                               </>
                             )}
                           </div>
@@ -948,13 +956,32 @@ export default function ExpensesPage() {
           </div>
           {accounts.length > 0 && (
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Account</label>
+              <label className="text-sm font-medium">
+                {formData.type === "transfer" ? "From Account" : "Account"}
+              </label>
               <select
                 value={formData.accountId}
                 onChange={(e) => setFormData((p) => ({ ...p, accountId: e.target.value }))}
                 className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
               >
                 <option value="">No account</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {accounts.length > 0 && formData.type === "transfer" && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">To Account</label>
+              <select
+                value={formData.toAccountId}
+                onChange={(e) => setFormData((p) => ({ ...p, toAccountId: e.target.value }))}
+                className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
+              >
+                <option value="">No destination account</option>
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
@@ -1129,7 +1156,9 @@ export default function ExpensesPage() {
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Account</label>
+            <label className="text-sm font-medium">
+              {editFormData.type === "transfer" ? "From Account" : "Account"}
+            </label>
             <select
               value={editFormData.accountId}
               onChange={(e) => setEditFormData((p) => ({ ...p, accountId: e.target.value }))}
@@ -1143,6 +1172,23 @@ export default function ExpensesPage() {
               ))}
             </select>
           </div>
+          {editFormData.type === "transfer" && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">To Account</label>
+              <select
+                value={editFormData.toAccountId}
+                onChange={(e) => setEditFormData((p) => ({ ...p, toAccountId: e.target.value }))}
+                className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
+              >
+                <option value="">No destination account</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <Input
             label="Date & Time"
             type="datetime-local"

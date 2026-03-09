@@ -33,6 +33,7 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [toAccountId, setToAccountId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [date, setDate] = useState(nowDateTimeInputValueIST());
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -58,10 +59,12 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
               const parsed = JSON.parse(saved) as {
                 type?: "expense" | "income" | "transfer";
                 accountId?: string;
+                toAccountId?: string;
                 categoryId?: string;
               };
               if (parsed.type) setType(parsed.type);
               if (parsed.accountId) setAccountId(parsed.accountId);
+              if (parsed.toAccountId) setToAccountId(parsed.toAccountId);
               if (parsed.categoryId) setCategoryId(parsed.categoryId);
             }
           } catch {
@@ -100,6 +103,7 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
           description: description || undefined,
           categoryId: categoryId || undefined,
           accountId: accountId || undefined,
+          toAccountId: type === "transfer" ? (toAccountId || undefined) : undefined,
           date,
         }),
       });
@@ -108,11 +112,12 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
       setAmount("");
       setDescription("");
       setAccountId("");
+      setToAccountId("");
       setCategoryId("");
       setDate(nowDateTimeInputValueIST());
       localStorage.setItem(
         "lifeos-expense-form-defaults",
-        JSON.stringify({ type, accountId, categoryId })
+        JSON.stringify({ type, accountId, toAccountId, categoryId })
       );
       onClose();
       router.refresh();
@@ -258,13 +263,33 @@ export function QuickAddSheet({ open, onClose, contextPath = "" }: QuickAddSheet
 
               {accounts.length > 0 && (
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Account</label>
+                  <label className="text-sm font-medium">
+                    {type === "transfer" ? "From Account" : "Account"}
+                  </label>
                   <select
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
                     className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
                   >
                     <option value="">No account</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {accounts.length > 0 && type === "transfer" && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">To Account</label>
+                  <select
+                    value={toAccountId}
+                    onChange={(e) => setToAccountId(e.target.value)}
+                    className="w-full h-11 rounded-xl border border-input bg-background px-4 text-sm"
+                  >
+                    <option value="">No destination account</option>
                     {accounts.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.name}

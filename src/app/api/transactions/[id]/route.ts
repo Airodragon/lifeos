@@ -11,6 +11,7 @@ const updateSchema = z.object({
   date: z.string().optional(),
   categoryId: z.string().nullable().optional(),
   accountId: z.string().nullable().optional(),
+  toAccountId: z.string().nullable().optional(),
   tags: z.array(z.string()).optional(),
 });
 
@@ -27,7 +28,7 @@ export async function GET(
     const { id } = await params;
     const transaction = await prisma.transaction.findFirst({
       where: { id, userId: user.id, deletedAt: null },
-      include: { category: true, account: true },
+      include: { category: true, account: true, toAccount: true },
     });
     if (!transaction) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -62,6 +63,11 @@ export async function PUT(
         ? existing.accountId
         : data.accountId || null;
 
+    const nextToAccountId =
+      data.toAccountId === undefined
+        ? existing.toAccountId
+        : data.toAccountId || null;
+
     if (nextAccountId) {
       const target = await prisma.account.findFirst({
         where: { id: nextAccountId, userId: user.id },
@@ -72,17 +78,44 @@ export async function PUT(
       }
     }
 
+    if (nextToAccountId && nextType === "transfer") {
+      const targetTo = await prisma.account.findFirst({
+        where: { id: nextToAccountId, userId: user.id },
+        select: { id: true },
+      });
+      if (!targetTo) {
+        return NextResponse.json({ error: "Destination account not found" }, { status: 400 });
+      }
+    }
+
     const transaction = await prisma.$transaction(async (tx) => {
+      // Revert old balances
       if (existing.accountId) {
         await tx.account.update({
           where: { id: existing.accountId },
           data: { balance: { increment: -accountDelta(existing.type, Number(existing.amount)) } },
         });
       }
+      if (existing.toAccountId && existing.type === "transfer") {
+        await tx.account.update({
+          where: { id: existing.toAccountId },
+          // A transfer adds to destination. To revert, we subtract.
+          data: { balance: { increment: -Number(existing.amount) } },
+        });
+      }
+
+      // Apply new balances
       if (nextAccountId) {
         await tx.account.update({
           where: { id: nextAccountId },
           data: { balance: { increment: accountDelta(nextType, nextAmount) } },
+        });
+      }
+      if (nextToAccountId && nextType === "transfer") {
+        await tx.account.update({
+          where: { id: nextToAccountId },
+          // A transfer adds to destination.
+          data: { balance: { increment: nextAmount } },
         });
       }
 
@@ -96,9 +129,10 @@ export async function PUT(
           categoryId:
             data.categoryId === undefined ? existing.categoryId : data.categoryId,
           accountId: nextAccountId,
+          toAccountId: nextType === "transfer" ? nextToAccountId : null,
           tags: data.tags,
         },
-        include: { category: true, account: true },
+        include: { category: true, account: true, toAccount: true },
       });
     });
 
@@ -130,6 +164,16 @@ export async function DELETE(
           data: {
             balance: {
               increment: -accountDelta(existing.type, Number(existing.amount)),
+            },
+          },
+        });
+      }
+      if (existing.toAccountId && existing.type === "transfer") {
+        await tx.account.update({
+          where: { id: existing.toAccountId },
+          data: {
+            balance: {
+              increment: -Number(existing.amount),
             },
           },
         });
